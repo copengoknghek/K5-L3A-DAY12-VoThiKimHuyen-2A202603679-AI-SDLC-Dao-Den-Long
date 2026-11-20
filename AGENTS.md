@@ -8,13 +8,15 @@ npm test
 npm run preview
 ```
 
-Headless (contract v1.1):
+Headless (contract v1.3):
 
 ```bash
 node dist/src/headless/cli.js --seed 42 --night 1 --ticks 120 --out out.jsonl
+node dist/src/bench/cli.js --seed 42 --duration 30 --out bench.json
+node dist/src/soak/cli.js --seed 7 --nights 10 --out soak.json
 ```
 
-`--night` nhận 1, 2, 3.
+`--night` nhận 1, 2, 3. Bench/soak không đổi JSONL headless.
 
 ## Quy tắc
 

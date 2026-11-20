@@ -26,7 +26,7 @@ export function runHeadless(options: {
   const lines: string[] = [];
 
   const writeSnapshot = (s: SimState) => {
-    if (s.tick % snapshotEvery === 0) lines.push(snapshotLine(s));
+    if (s.tick % snapshotEvery === 0) lines.push(snapshotLine(s, tuning));
   };
 
   writeSnapshot(state);

@@ -13,5 +13,14 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/sim/**/*.ts", "src/headless/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/sim/**/*.ts",
+    "src/headless/**/*.ts",
+    "src/bench/**/*.ts",
+    "src/soak/**/*.ts",
+    "src/run/**/*.ts",
+    "src/leaderboard.ts",
+    "src/leaderboard-core.ts",
+    "tests/**/*.ts"
+  ]
 }

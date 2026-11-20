@@ -1,16 +1,18 @@
 export type Vec3 = [number, number, number];
 
 export type GameStateKind = "playing" | "won" | "lost" | "paused";
-export type ShadeState = "spawning" | "wander" | "chase" | "recoil" | "stunned";
+export type ShadeState = "spawning" | "wander" | "chase" | "recoil" | "stunned" | "drain";
 export type DrifterState = "idle" | "chase" | "flee" | "removed";
 export type MoteKind = "random" | "dropped";
 
 export interface ScoreTuning {
   per_mote: number;
-  per_lantern: number;
+  per_lantern_first: number;
+  per_lantern_relight: number;
   per_stun: number;
-  per_second_left: number;
-  per_flame_left: number;
+  per_stun_drain_bonus: number;
+  per_lit_dawn: number;
+  per_flame_dawn: number;
 }
 
 export interface Tuning {
@@ -38,6 +40,14 @@ export interface Tuning {
   shade_speed: number;
   shade_hit_radius: number;
   fall_enabled: boolean;
+  fuel_max: number;
+  fuel_decay_per_s: number;
+  fuel_per_mote: number;
+  relight_cost: number;
+  win_ratio: number;
+  drain_per_s: number;
+  low_fuel_threshold: number;
+  capacity_max: number;
   score: ScoreTuning;
 }
 
@@ -67,6 +77,12 @@ export interface SimLantern {
   lit: boolean;
   deposited: number;
   pushTicks: number;
+  /** Nhiên liệu ×60 (1 đơn vị dầu = 60 đơn vị nội bộ). */
+  fuelSixtieths: number;
+  everLit: boolean;
+  relitCount: number;
+  /** Đèn bật sẵn từ scenario — không tăng successful_lights. */
+  scenarioPreset: boolean;
 }
 
 export interface SimShade {
@@ -75,6 +91,8 @@ export interface SimShade {
   state: ShadeState;
   stateTicks: number;
   interactDelay: number;
+  targetLanternId: string | null;
+  drainLogTicks: number;
 }
 
 export interface SimMote {
@@ -118,6 +136,7 @@ export interface SimState {
     grounded: boolean;
     flames: number;
     carried: number;
+    successfulLights: number;
     invulnTicks: number;
     dashTicks: number;
     dashCdTicks: number;
@@ -131,7 +150,7 @@ export interface SimState {
   motes: SimMote[];
   drifters: SimDrifter[];
   charms: SimCharm[];
-  reason: "all_lit" | "dawn" | "no_flames" | null;
+  reason: "dawn_survived" | "dawn" | "no_flames" | null;
   windActive: boolean;
   windDirDeg: number;
   windTicks: number;
@@ -140,12 +159,15 @@ export interface SimState {
   nextShadeId: number;
   nextDrifterId: number;
   nightStartEmitted: boolean;
+  /** Cảnh benchmark: chỉ Bóng wander, không gameplay. */
+  benchFreeze: boolean;
 }
 
 export interface ScenarioPlayer {
   pos?: Vec3;
   carried?: number;
   flames?: number;
+  successful_lights?: number;
   invuln_ticks?: number;
   dash_cd_ticks?: number;
   pulse_cd_ticks?: number;
@@ -157,6 +179,7 @@ export interface ScenarioShade {
   pos: Vec3;
   state?: ShadeState;
   state_ticks_left?: number;
+  target_lantern_id?: string;
 }
 
 export interface ScenarioLantern {
@@ -164,6 +187,8 @@ export interface ScenarioLantern {
   pos?: Vec3;
   deposited?: number;
   lit?: boolean;
+  fuel?: number;
+  ever_lit?: boolean;
 }
 
 export interface ScenarioDrifter {
@@ -192,6 +217,7 @@ export interface Scenario {
   drifters?: ScenarioDrifter[];
   charms?: ScenarioCharm[];
   time_left_s?: number;
+  bench_freeze?: boolean;
 }
 
 export interface InputFrame {
@@ -216,7 +242,22 @@ export type SimEvent =
       tick: number;
       data: { lantern_id: string; amount: number; deposited: number };
     }
-  | { type: "lantern_lit"; tick: number; data: { lantern_id: string } }
+  | {
+      type: "refuel";
+      tick: number;
+      data: { lantern_id: string; amount: number; fuel: number };
+    }
+  | { type: "lantern_out"; tick: number; data: { lantern_id: string } }
+  | {
+      type: "fuel_drain";
+      tick: number;
+      data: { lantern_id: string; shade_id: string; fuel: number };
+    }
+  | {
+      type: "lantern_lit";
+      tick: number;
+      data: { lantern_id: string; relight: boolean };
+    }
   | { type: "pulse"; tick: number; data: { stunned_ids: string[] } }
   | {
       type: "player_hit";
@@ -243,3 +284,12 @@ export type SimEvent =
 
 export const TICK_DT = 1 / 60;
 export const ISLAND_RADIUS = 40;
+
+export function fuelDisplay(fuelSixtieths: number): number {
+  return Math.round((fuelSixtieths / 60) * 10) / 10;
+}
+
+export function playerCapacity(state: SimState, tuning: Tuning): number {
+  const base = tuning.carry_capacity + 2 * state.player.successfulLights;
+  return Math.min(tuning.capacity_max, base);
+}

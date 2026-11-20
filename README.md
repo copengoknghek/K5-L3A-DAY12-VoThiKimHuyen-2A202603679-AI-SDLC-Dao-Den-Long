@@ -1,8 +1,8 @@
-# Đảo Đèn Lồng — Phase 2 (3 Đêm)
+# Đảo Đèn Lồng — v1.0.0
 
-<!-- Video demo: thêm link Release ở Phase 4 -->
+<!-- Video demo: thêm link Release v1.0.0 hoặc docs/demo/demo.mp4 -->
 
-Game 3D: Mây thắp đèn trên **Đảo Bến, Đảo Cau, Đảo Chuông**. Contract **v1.1**.
+Game 3D: Mây **giữ đảo sáng tới bình minh** trên **Đảo Bến, Đảo Cau, Đảo Chuông**. Contract **v1.3** (benchmark, soak, bảng xếp hạng, tiếp cận).
 
 ## Cài và chạy (≤ 3 lệnh)
 
@@ -12,47 +12,86 @@ npm run build
 npm run preview
 ```
 
-Mở **http://127.0.0.1:4173**
+Mở **http://127.0.0.1:4173** (hoặc `node dist/src/run/cli.js` — khởi động preview).
 
-## Điều khiển
+## Yêu cầu hệ thống
+
+- Node.js 20+
+- Trình duyệt WebGL2 (Chrome/Edge khuyến nghị)
+- ~500 MB dung lượng (kèm devDependencies Puppeteer cho bench)
+
+## Điều khiển (mặc định; đổi trong Cài đặt)
 
 | Phím | Hành động |
 |------|-----------|
-| W/S ↑↓ · A/D ←→ | Đi |
+| W/S/A/D | Đi |
 | Chuột | Xoay (nhạy trong Cài đặt) |
 | Space | Nhảy |
 | Shift | Lướt |
-| E | Nạp đèn |
-| F | Tỏa Sáng (tốn 3 đom đóm) |
-| Esc / P | Tạm dừng |
+| E | Thắp / châm dầu đèn |
+| F | Tỏa Sáng |
+| Esc | Tạm dừng |
 
-## Điểm (chuẩn)
+**Tiếp cận:** phụ đề/chỉ báo (Bóng, gió, 10 giây cuối, dầu thấp), giảm chuyển động, chữ lớn ×1.25, UI ≥ 18 px @ 1280×720.
 
-- +10 mỗi đom đóm **nạp** vào đèn  
-- +100 mỗi đèn thắp  
-- +5 mỗi Bóng Mực trúng Tỏa Sáng  
-- Thắng đêm: `floor(giây còn)×2 + 50×Ngọn Lửa`  
-- Tổng game = tổng điểm các đêm **thắng**
+## Kiểm thử
 
-Số liệu: [`game.contract.json`](game.contract.json). Spec: [`docs/notes/phase-2-assumptions.md`](docs/notes/phase-2-assumptions.md).
+```bash
+npm test
+```
 
-## Headless (Test Contract v1.1)
+**Windows PowerShell** (bản cũ không hỗ trợ `&&` — chạy **từng dòng**, hoặc nối bằng `;`):
+
+Nếu `npm ci` báo **EPERM** trên `esbuild.exe`: dừng `npm run preview` / cửa sổ đang chạy game (Ctrl+C), đóng tab preview, rồi `npm install` (hoặc xóa `node_modules` và `npm ci` lại).
+
+```powershell
+npm ci; npm run build
+npm test
+node dist/src/bench/cli.js --seed 42 --duration 30 --out bench.json
+node dist/src/soak/cli.js --seed 7 --nights 10 --out soak.json
+node dist/src/run/cli.js
+# chơi: npm run preview
+```
+
+### Headless (JSONL)
 
 ```bash
 node dist/src/headless/cli.js --seed 1 --night 1 --ticks 60 --out out.jsonl
 ```
 
-`--night` = 1, 2 hoặc 3.
+### Benchmark (WebGL + Puppeteer)
 
-## Sáng tạo của tôi
+```bash
+node dist/src/bench/cli.js --seed 42 --duration 30 --out bench.json
+```
 
-- Mesh Mây (nón lá, khăn đỏ), cỏ/cây Đêm 1, Web Audio — không đổi headless.
+Cửa sổ **1280×720**, 3 s khởi động rồi đo. **VSync:** trên trình duyệt không tắt được hoàn toàn → `vsync_off: false` trong `bench.json`.
 
-## Bằng chứng
+### Soak (10 đêm headless)
 
-- Phase 1: [`docs/proof/phase-1.md`](docs/proof/phase-1.md)  
-- Phase 2: [`docs/proof/phase-2.md`](docs/proof/phase-2.md)
+```bash
+node dist/src/soak/cli.js --seed 7 --nights 10 --out soak.json
+```
 
----
+### Xuất bảng xếp hạng
 
-Tài liệu lab: [GUIDE](GUIDE.md) · [CHECKPOINTS](CHECKPOINTS.md) · [SUBMISSION](SUBMISSION.md) · [RULES](RULES.md) · [RUBRIC](RUBRIC.md)
+Sau khi chơi và **Lưu điểm** (đồng bộ `leaderboard.json` qua preview):
+
+```bash
+node dist/src/run/cli.js --export-leaderboard out.json
+```
+
+## Phát hành v1.0.0
+
+Bản chạy: thư mục **`dist/client/`** (web tĩnh sau `npm run build`) + headless CLI trong `dist/src/`. Gắn tag `phase-4` và GitHub Release `v1.0.0` kèm `dist/client` hoặc hướng dẫn 3 lệnh trên.
+
+## Bằng chứng & tài liệu
+
+- [Phase 1](docs/proof/phase-1.md) · [Phase 2](docs/proof/phase-2.md) · [Phase 3](docs/proof/phase-3.md) · [Phase 4](docs/proof/phase-4.md)
+- [CHANGELOG](CHANGELOG.md) · [CREDITS](CREDITS.md) · [LICENSE](LICENSE)
+- Retro: [docs/notes/retro-phase4.md](docs/notes/retro-phase4.md)
+- Kết quả mẫu: [`bench.json`](bench.json) · [`soak.json`](soak.json)
+
+## Sáng tạo
+
+Mesh Mây, cỏ/cây, Web Audio — không đổi đầu ra headless.

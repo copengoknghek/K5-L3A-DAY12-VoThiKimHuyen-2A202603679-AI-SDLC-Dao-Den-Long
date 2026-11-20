@@ -7,6 +7,8 @@ import {
   DASH_SPEED,
   DASH_TICKS,
   DETECT_R,
+  DRAIN_ENTER_XZ,
+  DRAIN_PER_TICK,
   DRIFTER_AGGRO_R,
   DRIFTER_FADE_TICKS,
   DRIFTER_FAST,
@@ -21,6 +23,9 @@ import {
   DROP_TTL_TICKS,
   FALL_WAIT_TICKS,
   FALL_Y,
+  FUEL_DECAY_PER_TICK,
+  FUEL_MAX_SIXTIETHS,
+  FUEL_PER_MOTE_SIXTIETHS,
   GRAVITY,
   HIT_XZ,
   HIT_Y,
@@ -29,6 +34,7 @@ import {
   JUMP_SPEED,
   LANTERN_COST,
   LOSE_CHASE_R,
+  LOW_FUEL_SIXTIETHS,
   MOTE_CAP,
   MOTE_SPAWN_EVERY,
   PICKUP_XZ,
@@ -40,13 +46,16 @@ import {
   PULSE_PUSH_TICKS,
   PULSE_RADIUS,
   PULSE_STUN_TICKS,
+  RELIGHT_COST,
   SAFE_PUSH_TICKS,
   SAFE_R,
-  SCORE_DEPOSIT,
-  SCORE_FLAME,
-  SCORE_LANTERN,
+  SCORE_DAWN_FLAME,
+  SCORE_DAWN_LIT,
+  SCORE_LANTERN_FIRST,
+  SCORE_LANTERN_RELIGHT,
+  SCORE_MOTE,
   SCORE_PULSE,
-  SCORE_SEC,
+  SCORE_PULSE_DRAIN_BONUS,
   SHADE_FIRST_TICK,
   SHADE_INTERVAL,
   SHADE_MAX,
@@ -55,6 +64,7 @@ import {
   SHADE_SPEED_N12,
   SHADE_SPEED_N3,
   TICK_DT,
+  WIN_RATIO,
   WIND_DUR,
   WIND_PERIOD,
   WIND_PUSH,
@@ -63,7 +73,18 @@ import { edgeActivate } from "./input.js";
 import { groundY, mapForNight, padAt, towerBlocks } from "./maps.js";
 import { dist3, distXZ, normalizeXZ } from "./math.js";
 import { stepRng } from "./rng.js";
-import type { HeldInput, SimEvent, SimMote, SimState, Tuning, Vec3 } from "./types.js";
+import {
+  fuelDisplay,
+  playerCapacity,
+  type HeldInput,
+  type SimEvent,
+  type SimLantern,
+  type SimMote,
+  type SimShade,
+  type SimState,
+  type Tuning,
+  type Vec3,
+} from "./types.js";
 import { moteOccupies } from "./world.js";
 
 function worldMoveDir(held: HeldInput): [number, number] {
@@ -88,11 +109,15 @@ function shadeSpeed(night: number): number {
   return night === 3 ? SHADE_SPEED_N3 : SHADE_SPEED_N12;
 }
 
+function lanternSafe(lan: SimLantern): boolean {
+  return lan.lit && lan.fuelSixtieths >= LOW_FUEL_SIXTIETHS;
+}
+
 function applySafeBlock(state: SimState, nx: number, nz: number): [number, number] {
   let x = nx;
   let z = nz;
   for (const lan of state.lanterns) {
-    if (!lan.lit) continue;
+    if (!lanternSafe(lan)) continue;
     const d = Math.hypot(x - lan.pos[0], z - lan.pos[2]);
     if (d < SAFE_R && d > 1e-6) {
       const s = SAFE_R / d;
@@ -106,7 +131,21 @@ function applySafeBlock(state: SimState, nx: number, nz: number): [number, numbe
 }
 
 function insideSafe(state: SimState, pos: Vec3): boolean {
-  return state.lanterns.some((l) => l.lit && distXZ(pos, l.pos) < SAFE_R);
+  return state.lanterns.some((l) => lanternSafe(l) && distXZ(pos, l.pos) < SAFE_R);
+}
+
+function lightCost(lan: SimLantern): number {
+  return lan.everLit ? RELIGHT_COST : LANTERN_COST;
+}
+
+function interactableLanterns(state: SimState): SimLantern[] {
+  return state.lanterns.filter((l) => {
+    if (!l.lit) {
+      const cost = lightCost(l);
+      return l.deposited < cost;
+    }
+    return l.fuelSixtieths < FUEL_MAX_SIXTIETHS;
+  });
 }
 
 function tickCounters(state: SimState): void {
@@ -281,11 +320,12 @@ function applyFall(state: SimState, nextTick: number, events: SimEvent[]): void 
   p.fallWaitTicks = FALL_WAIT_TICKS;
 }
 
-function pickup(state: SimState, nextTick: number, events: SimEvent[]): void {
+function pickup(state: SimState, tuning: Tuning, nextTick: number, events: SimEvent[]): void {
   const p = state.player;
   if (p.fallWaitTicks > 0) return;
+  const cap = playerCapacity(state, tuning);
 
-  while (p.carried < 10) {
+  while (p.carried < cap) {
     const cand = state.motes
       .filter(
         (m) =>
@@ -316,7 +356,33 @@ function pickup(state: SimState, nextTick: number, events: SimEvent[]): void {
   }
 }
 
-function deposit(
+function pushShadesNearLantern(state: SimState, lan: SimLantern): void {
+  lan.pushTicks = SAFE_PUSH_TICKS;
+}
+
+function finishLighting(
+  state: SimState,
+  lantern: SimLantern,
+  wasRelight: boolean,
+  nextTick: number,
+  events: SimEvent[],
+): void {
+  lantern.lit = true;
+  lantern.fuelSixtieths = FUEL_MAX_SIXTIETHS;
+  lantern.deposited = 0;
+  lantern.everLit = true;
+  if (wasRelight) lantern.relitCount += 1;
+  if (!lantern.scenarioPreset) state.player.successfulLights += 1;
+  pushShadesNearLantern(state, lantern);
+  state.score += wasRelight ? SCORE_LANTERN_RELIGHT : SCORE_LANTERN_FIRST;
+  events.push({
+    type: "lantern_lit",
+    tick: nextTick,
+    data: { lantern_id: lantern.id, relight: wasRelight },
+  });
+}
+
+function interact(
   state: SimState,
   held: HeldInput,
   prev: HeldInput,
@@ -325,35 +391,83 @@ function deposit(
 ): void {
   if (!edgeActivate(prev.interact, held.interact) || state.player.carried <= 0) return;
   const p = state.player;
-  const cands = state.lanterns
-    .filter((l) => !l.lit)
+  const cands = interactableLanterns(state)
     .map((l) => ({ l, d: distXZ(p.pos, l.pos) }))
     .filter((x) => x.d <= INTERACT_R)
     .sort((a, b) => a.d - b.d || a.l.id.localeCompare(b.l.id, undefined, { numeric: true }));
   if (!cands.length) return;
   const lantern = cands[0].l;
-  const need = LANTERN_COST - lantern.deposited;
-  const amount = Math.min(p.carried, need);
-  if (amount <= 0) return;
-  p.carried -= amount;
-  lantern.deposited += amount;
-  state.score += SCORE_DEPOSIT * amount;
+
+  if (!lantern.lit) {
+    const cost = lightCost(lantern);
+    const need = cost - lantern.deposited;
+    const amount = Math.min(p.carried, need);
+    if (amount <= 0) return;
+    p.carried -= amount;
+    lantern.deposited += amount;
+    state.score += SCORE_MOTE * amount;
+    events.push({
+      type: "deposit",
+      tick: nextTick,
+      data: { lantern_id: lantern.id, amount, deposited: lantern.deposited },
+    });
+    if (lantern.deposited >= cost) {
+      finishLighting(state, lantern, lantern.everLit, nextTick, events);
+    }
+    return;
+  }
+
+  const room = FUEL_MAX_SIXTIETHS - lantern.fuelSixtieths;
+  const used = Math.min(p.carried, Math.ceil(room / FUEL_PER_MOTE_SIXTIETHS));
+  if (used <= 0) return;
+  const prevFuel = lantern.fuelSixtieths;
+  p.carried -= used;
+  lantern.fuelSixtieths = Math.min(FUEL_MAX_SIXTIETHS, lantern.fuelSixtieths + used * FUEL_PER_MOTE_SIXTIETHS);
+  state.score += SCORE_MOTE * used;
   events.push({
-    type: "deposit",
+    type: "refuel",
     tick: nextTick,
-    data: { lantern_id: lantern.id, amount, deposited: lantern.deposited },
+    data: { lantern_id: lantern.id, amount: used, fuel: fuelDisplay(lantern.fuelSixtieths) },
   });
-  if (lantern.deposited >= LANTERN_COST && !lantern.lit) {
-    lantern.lit = true;
-    lantern.pushTicks = SAFE_PUSH_TICKS;
-    state.score += SCORE_LANTERN;
-    events.push({ type: "lantern_lit", tick: nextTick, data: { lantern_id: lantern.id } });
+  if (prevFuel < LOW_FUEL_SIXTIETHS && lantern.fuelSixtieths >= LOW_FUEL_SIXTIETHS) {
+    const nearShade = state.shades.some((s) => distXZ(s.pos, lantern.pos) < SAFE_R);
+    if (nearShade) pushShadesNearLantern(state, lantern);
+  }
+}
+
+function tickFuelAndExtinguish(state: SimState, nextTick: number, events: SimEvent[]): void {
+  for (const lan of state.lanterns) {
+    if (!lan.lit) continue;
+    lan.fuelSixtieths -= FUEL_DECAY_PER_TICK;
+    for (const s of state.shades) {
+      if (s.state !== "drain" || s.targetLanternId !== lan.id) continue;
+      lan.fuelSixtieths -= DRAIN_PER_TICK;
+      s.drainLogTicks += 1;
+      if (s.drainLogTicks >= 60) {
+        s.drainLogTicks = 0;
+        events.push({
+          type: "fuel_drain",
+          tick: nextTick,
+          data: {
+            lantern_id: lan.id,
+            shade_id: s.id,
+            fuel: fuelDisplay(lan.fuelSixtieths),
+          },
+        });
+      }
+    }
+    if (lan.fuelSixtieths <= 0) {
+      lan.fuelSixtieths = 0;
+      lan.lit = false;
+      lan.deposited = 0;
+      events.push({ type: "lantern_out", tick: nextTick, data: { lantern_id: lan.id } });
+    }
   }
 }
 
 function updateSafePush(state: SimState): void {
   for (const lan of state.lanterns) {
-    if (!lan.lit || lan.pushTicks <= 0) continue;
+    if (!lanternSafe(lan) || lan.pushTicks <= 0) continue;
     for (const s of state.shades) {
       const d = distXZ(s.pos, lan.pos);
       if (d >= SAFE_R || d < 1e-9) continue;
@@ -384,10 +498,13 @@ function pulse(
   for (const s of state.shades) {
     if (s.interactDelay > 0) continue;
     if (dist3(origin, s.pos) > PULSE_RADIUS) continue;
+    const wasDrain = s.state === "drain";
     s.state = "stunned";
     s.stateTicks = PULSE_STUN_TICKS;
+    s.drainLogTicks = 0;
     stunned.push(s.id);
     state.score += SCORE_PULSE;
+    if (wasDrain) state.score += SCORE_PULSE_DRAIN_BONUS;
   }
   stunned.sort();
   events.push({ type: "pulse", tick: nextTick, data: { stunned_ids: stunned } });
@@ -426,6 +543,55 @@ function dropStolen(state: SimState, d: SimState["drifters"][0]): void {
   }
 }
 
+function wanderTargetLantern(state: SimState, shadePos: Vec3): SimLantern | null {
+  const weak = state.lanterns
+    .filter((l) => l.lit && l.fuelSixtieths < LOW_FUEL_SIXTIETHS)
+    .map((l) => ({ l, d: distXZ(shadePos, l.pos) }))
+    .sort((a, b) => a.d - b.d || a.l.id.localeCompare(b.l.id, undefined, { numeric: true }));
+  if (weak.length) return weak[0].l;
+  const unlit = state.lanterns
+    .filter((l) => !l.lit)
+    .map((l) => ({ l, d: distXZ(shadePos, l.pos) }))
+    .sort((a, b) => a.d - b.d || a.l.id.localeCompare(b.l.id, undefined, { numeric: true }));
+  if (unlit.length) return unlit[0].l;
+  return null;
+}
+
+function targetLanternPos(state: SimState, s: SimShade): Vec3 | null {
+  if (s.targetLanternId) {
+    const lan = state.lanterns.find((l) => l.id === s.targetLanternId);
+    if (lan) return lan.pos;
+  }
+  const t = wanderTargetLantern(state, s.pos);
+  if (t) {
+    s.targetLanternId = t.id;
+    return t.pos;
+  }
+  return null;
+}
+
+function updateDrainState(state: SimState, s: SimShade): void {
+  if (s.state !== "drain") return;
+  const lan = state.lanterns.find((l) => l.id === s.targetLanternId);
+  if (!lan || !lan.lit) {
+    s.state = "wander";
+    s.drainLogTicks = 0;
+    return;
+  }
+  const dLan = distXZ(s.pos, lan.pos);
+  const dPl = distXZ(s.pos, state.player.pos);
+  if (dPl <= SAFE_R) {
+    s.state = "chase";
+    s.drainLogTicks = 0;
+    return;
+  }
+  if (lan.fuelSixtieths >= LOW_FUEL_SIXTIETHS || dLan > DRAIN_ENTER_XZ) {
+    s.state = "wander";
+    s.drainLogTicks = 0;
+    return;
+  }
+}
+
 function moveShades(state: SimState): void {
   const p = state.player.pos;
   const spd = shadeSpeed(state.night) * TICK_DT;
@@ -461,9 +627,16 @@ function moveShades(state: SimState): void {
       if (s.stateTicks <= 0) s.state = "wander";
       continue;
     }
+
+    if (s.state === "drain") {
+      updateDrainState(state, s);
+      if (s.state === "drain") continue;
+    }
+
     const d = distXZ(s.pos, p);
     if (s.state === "wander" && d <= DETECT_R) s.state = "chase";
     if (s.state === "chase" && d > LOSE_CHASE_R) s.state = "wander";
+
     if (s.state === "chase") {
       const [nx, nz] = normalizeXZ(p[0] - s.pos[0], p[2] - s.pos[2]);
       let x = s.pos[0] + nx * spd;
@@ -472,12 +645,34 @@ function moveShades(state: SimState): void {
       s.pos[0] = x;
       s.pos[2] = z;
     } else if (s.state === "wander") {
-      const ang = (s.id.charCodeAt(s.id.length - 1) + state.simTick * 0.01) % (Math.PI * 2);
-      let x = s.pos[0] + Math.cos(ang) * spd * 0.35;
-      let z = s.pos[2] + Math.sin(ang) * spd * 0.35;
-      [x, z] = applySafeBlock(state, x, z);
-      s.pos[0] = x;
-      s.pos[2] = z;
+      const tgt = targetLanternPos(state, s);
+      if (tgt) {
+        const lan = state.lanterns.find((l) => l.id === s.targetLanternId);
+        if (
+          lan &&
+          lan.lit &&
+          lan.fuelSixtieths < LOW_FUEL_SIXTIETHS &&
+          distXZ(s.pos, lan.pos) <= DRAIN_ENTER_XZ
+        ) {
+          s.state = "drain";
+          s.drainLogTicks = 0;
+          continue;
+        }
+        const [nx, nz] = normalizeXZ(tgt[0] - s.pos[0], tgt[2] - s.pos[2]);
+        const wspd = spd * 0.5;
+        let x = s.pos[0] + (nx || 0) * wspd;
+        let z = s.pos[2] + (nz || 0) * wspd;
+        [x, z] = applySafeBlock(state, x, z);
+        s.pos[0] = x;
+        s.pos[2] = z;
+      } else {
+        const ang = (s.id.charCodeAt(s.id.length - 1) + state.simTick * 0.01) % (Math.PI * 2);
+        let x = s.pos[0] + Math.cos(ang) * spd * 0.35;
+        let z = s.pos[2] + Math.sin(ang) * spd * 0.35;
+        [x, z] = applySafeBlock(state, x, z);
+        s.pos[0] = x;
+        s.pos[2] = z;
+      }
     }
   }
 }
@@ -547,8 +742,13 @@ function contacts(state: SimState, nextTick: number, events: SimEvent[]): void {
   for (const s of shades) {
     if (hit) break;
     if (s.interactDelay > 0) continue;
-    if (s.state === "stunned" || s.state === "spawning" || s.state === "recoil") continue;
-    if (state.lanterns.some((l) => l.lit && l.pushTicks > 0 && distXZ(s.pos, l.pos) < SAFE_R)) {
+    if (s.state === "stunned" || s.state === "spawning" || s.state === "recoil" || s.state === "drain")
+      continue;
+    if (
+      state.lanterns.some(
+        (l) => lanternSafe(l) && l.pushTicks > 0 && distXZ(s.pos, l.pos) < SAFE_R,
+      )
+    ) {
       continue;
     }
     if (distXZ(s.pos, p.pos) <= HIT_XZ && Math.abs(s.pos[1] - p.pos[1]) <= HIT_Y) {
@@ -615,9 +815,7 @@ function spawns(state: SimState, nextTick: number, events: SimEvent[]): void {
     const count = st === SHADE_FIRST_TICK ? 2 : 1;
     for (let k = 0; k < count; k++) {
       if (state.shades.length >= maxS) break;
-      const pts = map.shadeSpawns.filter(
-        (pt) => distXZ(pt, state.player.pos) >= 15,
-      );
+      const pts = map.shadeSpawns.filter((pt) => distXZ(pt, state.player.pos) >= 15);
       if (!pts.length) break;
       const pt = pts[Math.floor(rng01(state) * pts.length)];
       const id = `S${state.nextShadeId++}`;
@@ -627,6 +825,8 @@ function spawns(state: SimState, nextTick: number, events: SimEvent[]): void {
         state: "spawning",
         stateTicks: 1,
         interactDelay: 1,
+        targetLanternId: null,
+        drainLogTicks: 0,
       });
       events.push({ type: "shade_spawned", tick: nextTick, data: { id } });
     }
@@ -655,6 +855,14 @@ function spawns(state: SimState, nextTick: number, events: SimEvent[]): void {
   }
 }
 
+function applyDawnScore(state: SimState): void {
+  for (const l of state.lanterns) {
+    if (!l.lit) continue;
+    state.score += SCORE_DAWN_LIT + Math.floor(l.fuelSixtieths / 60);
+  }
+  state.score += state.player.flames * SCORE_DAWN_FLAME;
+}
+
 function checkEnd(state: SimState, nextTick: number, events: SimEvent[]): void {
   if (state.player.flames <= 0) {
     state.state = "lost";
@@ -666,32 +874,33 @@ function checkEnd(state: SimState, nextTick: number, events: SimEvent[]): void {
     });
     return;
   }
-  const allLit = state.lanterns.length > 0 && state.lanterns.every((l) => l.lit);
-  if (allLit) {
-    state.score += Math.floor(Math.max(0, state.timeLeftS)) * SCORE_SEC + state.player.flames * SCORE_FLAME;
-    state.state = "won";
-    state.reason = "all_lit";
-    events.push({
-      type: "game_over",
-      tick: nextTick,
-      data: { result: "won", reason: "all_lit" },
-    });
-    return;
-  }
   if (state.timeLeftS <= 0) {
-    state.state = "lost";
-    state.reason = "dawn";
-    events.push({
-      type: "game_over",
-      tick: nextTick,
-      data: { result: "lost", reason: "dawn" },
-    });
+    const need = Math.ceil(state.lanterns.length * WIN_RATIO);
+    const litCount = state.lanterns.filter((l) => l.lit).length;
+    if (litCount >= need) {
+      applyDawnScore(state);
+      state.state = "won";
+      state.reason = "dawn_survived";
+      events.push({
+        type: "game_over",
+        tick: nextTick,
+        data: { result: "won", reason: "dawn_survived" },
+      });
+    } else {
+      state.state = "lost";
+      state.reason = "dawn";
+      events.push({
+        type: "game_over",
+        tick: nextTick,
+        data: { result: "lost", reason: "dawn" },
+      });
+    }
   }
 }
 
 export function step(
   state: SimState,
-  _tuning: Tuning,
+  tuning: Tuning,
   held: HeldInput,
   prev: HeldInput,
 ): SimEvent[] {
@@ -713,11 +922,20 @@ export function step(
     return events;
   }
 
+  if (state.benchFreeze) {
+    const nextTick = state.tick + 1;
+    moveShades(state);
+    state.tick = nextTick;
+    state.simTick += 1;
+    return events;
+  }
+
   const nextTick = state.tick + 1;
   tickCounters(state);
   movePlayer(state, held, prev, nextTick, events);
-  pickup(state, nextTick, events);
-  deposit(state, held, prev, nextTick, events);
+  pickup(state, tuning, nextTick, events);
+  interact(state, held, prev, nextTick, events);
+  tickFuelAndExtinguish(state, nextTick, events);
   updateSafePush(state);
   pulse(state, held, prev, nextTick, events);
   moveShades(state);

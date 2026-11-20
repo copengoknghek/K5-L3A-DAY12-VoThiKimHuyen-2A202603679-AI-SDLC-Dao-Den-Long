@@ -1,4 +1,4 @@
-import { FLAMES_MAX, NIGHT_DURATION, START_MOTES } from "./constants.js";
+import { FLAMES_MAX, FUEL_MAX_SIXTIETHS, NIGHT_DURATION, START_MOTES } from "./constants.js";
 import { mapForNight, type NightMap } from "./maps.js";
 import { distXZ } from "./math.js";
 import type {
@@ -60,23 +60,42 @@ export function createInitialState(args: {
     lit: false,
     deposited: 0,
     pushTicks: 0,
+    fuelSixtieths: 0,
+    everLit: false,
+    relitCount: 0,
+    scenarioPreset: false,
   }));
 
   if (scenario?.lanterns) {
     for (const patch of scenario.lanterns) {
       const existing = lanterns.find((l) => l.id === patch.id);
-      if (existing) {
-        if (patch.pos) existing.pos = vecFromRaw(patch.pos);
-        if (patch.deposited !== undefined) existing.deposited = patch.deposited;
-        if (patch.lit !== undefined) existing.lit = patch.lit;
-      } else {
-        lanterns.push({
+      const target =
+        existing ??
+        ({
           id: patch.id,
           pos: patch.pos ? vecFromRaw(patch.pos) : [0, 0, 0],
-          lit: patch.lit ?? false,
-          deposited: patch.deposited ?? 0,
+          lit: false,
+          deposited: 0,
           pushTicks: 0,
-        });
+          fuelSixtieths: 0,
+          everLit: false,
+          relitCount: 0,
+          scenarioPreset: false,
+        } as (typeof lanterns)[0]);
+      if (!existing) lanterns.push(target);
+      if (patch.pos) target.pos = vecFromRaw(patch.pos);
+      if (patch.deposited !== undefined) target.deposited = patch.deposited;
+      if (patch.ever_lit !== undefined) target.everLit = patch.ever_lit;
+      if (patch.lit !== undefined) {
+        target.lit = patch.lit;
+        if (patch.lit) {
+          target.scenarioPreset = true;
+          target.everLit = patch.ever_lit ?? true;
+          const fuelUnits = patch.fuel ?? 100;
+          target.fuelSixtieths = Math.round(fuelUnits * 60);
+        }
+      } else if (patch.fuel !== undefined) {
+        target.fuelSixtieths = Math.round(patch.fuel * 60);
       }
     }
     lanterns.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
@@ -109,6 +128,8 @@ export function createInitialState(args: {
       state: s.state ?? "wander",
       stateTicks: s.state_ticks_left ?? 0,
       interactDelay: 0,
+      targetLanternId: s.target_lantern_id ?? null,
+      drainLogTicks: 0,
     }));
   } else if (randomShades) {
     shades = [];
@@ -168,6 +189,7 @@ export function createInitialState(args: {
       grounded: true,
       flames: p?.flames ?? tuning.flames ?? FLAMES_MAX,
       carried: p?.carried ?? 0,
+      successfulLights: p?.successful_lights ?? 0,
       invulnTicks: p?.invuln_ticks ?? 0,
       dashTicks: 0,
       dashCdTicks: p?.dash_cd_ticks ?? 0,
@@ -190,6 +212,7 @@ export function createInitialState(args: {
     nextShadeId: shades.length + 1,
     nextDrifterId: drifters.length + 1,
     nightStartEmitted: false,
+    benchFreeze: scenario?.bench_freeze === true,
   };
 }
 

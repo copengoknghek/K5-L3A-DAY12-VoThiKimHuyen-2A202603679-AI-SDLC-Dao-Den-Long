@@ -10,8 +10,40 @@
     <div id="overlay-menu" class="overlay">
       <h1>Đảo Đèn Lồng</h1>
       <p class="story">Ba đêm. Ba hòn đảo. Thắp lại ánh sáng.</p>
-      <button type="button" id="btn-menu-play">Chơi</button>
+      <p class="story">Chọn nhân vật</p>
+      <div class="pick-row">
+        <button type="button" class="pick" id="pick-nu" aria-pressed="true">
+          Nữ
+          <small>Áo dài kem, nón lá</small>
+        </button>
+        <button type="button" class="pick" id="pick-nam" aria-pressed="false">
+          Nam
+          <small>Bộ đội, mũ cối</small>
+        </button>
+      </div>
+      <p class="story">Chọn đêm</p>
+      <div class="pick-row" id="night-picks">
+        <button type="button" class="pick night-pick" data-night="1" aria-pressed="true">
+          Đêm 1
+          <small>Đảo Bến · 4:00</small>
+        </button>
+        <button type="button" class="pick night-pick" data-night="2" aria-pressed="false">
+          Đêm 2
+          <small>Đảo Cau · 4:30</small>
+        </button>
+        <button type="button" class="pick night-pick" data-night="3" aria-pressed="false">
+          Đêm 3
+          <small>Đảo Chuông · 5:00</small>
+        </button>
+      </div>
+      <button type="button" id="btn-menu-play">Chơi đêm đã chọn</button>
+      <button type="button" id="btn-menu-leaderboard">Bảng xếp hạng</button>
       <button type="button" id="btn-menu-settings">Cài đặt</button>
+    </div>
+    <div id="overlay-leaderboard" class="overlay" hidden>
+      <h1>Bảng xếp hạng</h1>
+      <ol id="leaderboard-list" class="lb-list"></ol>
+      <button type="button" id="btn-leaderboard-close">Đóng</button>
     </div>
     <div id="overlay-intro" class="overlay" hidden>
       <h1 id="intro-title">Đêm 1 — Đảo Bến</h1>
@@ -21,10 +53,17 @@
     <div id="overlay-result" class="overlay" hidden>
       <h1 id="result-title"></h1>
       <p id="result-score"></p>
+      <div id="result-save" class="save-score" hidden>
+        <label>Tên (3–12 ký tự) <input id="result-name" maxlength="12" autocomplete="nickname" /></label>
+        <p id="result-name-err" class="err" hidden></p>
+        <button type="button" id="btn-save-score">Lưu điểm</button>
+      </div>
       <button type="button" id="btn-result">Tiếp</button>
+      <button type="button" id="btn-result-menu">Về menu</button>
     </div>
     <div id="overlay-pause" class="overlay" hidden>
       <h1>Tạm dừng</h1>
+      <p class="story">Game đang dừng — đồng hồ và quái không chạy. Nhấn Esc / P hoặc «Tiếp tục».</p>
       <button type="button" id="btn-resume">Tiếp tục</button>
       <button type="button" id="btn-restart-night">Chơi lại Đêm</button>
       <button type="button" id="btn-pause-settings">Cài đặt</button>
@@ -34,16 +73,26 @@
       <h1>Cài đặt</h1>
       <label>Âm lượng <input type="range" id="set-vol" min="0" max="100" /></label>
       <label>Độ nhạy chuột <input type="range" id="set-sens" min="5" max="40" /></label>
+      <label class="set-row"><input type="checkbox" id="set-cb" /> Bảng màu dễ phân biệt</label>
+      <label class="set-row"><input type="checkbox" id="set-reduce-motion" /> Giảm chuyển động</label>
+      <label class="set-row"><input type="checkbox" id="set-large-text" /> Chữ lớn (×1.25)</label>
+      <p class="story">Đổi phím (nhấn ô rồi bấm phím mới)</p>
+      <div id="key-bindings" class="key-grid"></div>
+      <p id="key-bind-err" class="err" hidden></p>
+      <button type="button" id="btn-keys-reset">Khôi phục mặc định</button>
       <button type="button" id="btn-settings-close">Đóng</button>
     </div>
 
     <div id="hud" hidden>
       <div id="hud-top">
+        <span id="hud-night-label" class="hud-night">Đêm 1</span>
         <div id="hud-flames" class="hud-flames"></div>
         <div id="hud-clock">05:00</div>
-        <div id="hud-right"><span id="hud-lanterns">0/5</span> · <span id="hud-score">0</span></div>
+        <div id="hud-right"><span id="hud-lanterns">0/5</span> · <span id="hud-carry">0/10</span> · <span id="hud-score">0</span></div>
+        <button type="button" id="btn-hud-pause" title="Tạm dừng (Esc / P)">⏸ Tạm dừng</button>
       </div>
       <p id="hud-prompt" class="prompt"></p>
+      <aside id="hud-hints" class="hud-hints" aria-label="Gợi ý điều khiển"></aside>
       <div id="hud-bottom">
         <div id="mote-bar"></div>
         <div class="cds">
@@ -52,6 +101,8 @@
         </div>
       </div>
       <div id="lantern-arrow" hidden>▲</div>
+      <div id="shade-arrow" class="edge-arrow" hidden aria-live="polite">◀ Bóng Mực</div>
+      <div id="a11y-banner" class="a11y-banner" hidden aria-live="polite"></div>
     </div>
     <canvas id="game"></canvas>
     <script type="module" src="/src/client/main.ts"></script>

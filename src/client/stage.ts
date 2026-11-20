@@ -1,45 +1,92 @@
 import * as THREE from "three";
-import { addGrassAndTrees } from "./scenery.js";
+import {
+  addGrassAndTrees,
+  addGroundMist,
+  addMountains,
+  addSteppedIsland,
+  createCloudField,
+} from "./scenery.js";
 
 const C = {
-  sky: 0x0e1430,
-  fog: 0x1b2350,
-  grass: 0x2f5d50,
-  wood: 0x6b4a2f,
-  sea: 0x12384a,
-  sand: 0xc9b48a,
+  skyTop: 0x121a38,
+  skyMid: 0x2a3d72,
+  skyHorizon: 0x4a5d90,
+  fog: 0x4a5d90,
+  grass: 0x3c8f56,
+  grassGlow: 0x102818,
+  wood: 0x8a5a34,
+  sea: 0x1c5278,
+  sand: 0xe6d2a8,
 };
 
 export function clearGroup(g: THREE.Group): void {
   while (g.children.length) g.remove(g.children[0]);
 }
 
-export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): void {
-  clearGroup(parent);
+function grassMat(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: C.grass,
+    emissive: C.grassGlow,
+    emissiveIntensity: 0.22,
+    roughness: 0.86,
+  });
+}
+
+function addSky(parent: THREE.Object3D): void {
+  const geo = new THREE.SphereGeometry(280, 32, 20);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const top = new THREE.Color(C.skyTop);
+  const mid = new THREE.Color(C.skyMid);
+  const hor = new THREE.Color(C.skyHorizon);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 280;
+    const t = (y + 1) / 2;
+    if (t < 0.48) c.copy(hor).lerp(mid, t / 0.48);
+    else c.copy(mid).lerp(top, (t - 0.48) / 0.52);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const sky = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false }),
+  );
+  parent.add(sky);
+}
+
+function addSea(parent: THREE.Object3D): void {
   const sea = new THREE.Mesh(
-    new THREE.CircleGeometry(120, 48),
-    new THREE.MeshBasicMaterial({ color: C.sea, transparent: true, opacity: 0.85 }),
+    new THREE.CircleGeometry(220, 56),
+    new THREE.MeshBasicMaterial({ color: C.sea, transparent: true, opacity: 0.92 }),
   );
   sea.rotation.x = -Math.PI / 2;
   sea.position.y = -0.6;
   parent.add(sea);
+}
 
-  const grassMat = new THREE.MeshStandardMaterial({ color: C.grass, roughness: 0.9 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: C.wood, roughness: 0.85 });
+function addIsland(parent: THREE.Object3D, x: number, z: number, radius: number, rise?: number): void {
+  addSteppedIsland(parent, x, z, radius, rise);
+  addGroundMist(parent, x, z, radius + 18);
+}
+
+export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
+  clearGroup(parent);
+  addSky(parent);
+  addSea(parent);
+  addMountains(parent);
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: C.wood, roughness: 0.82 });
 
   if (night === 1) {
-    const island = new THREE.Mesh(new THREE.CylinderGeometry(40, 42, 0.6, 48), grassMat);
-    island.position.y = -0.3;
-    parent.add(island);
+    addIsland(parent, 0, 0, 40);
     addGrassAndTrees(parent);
   }
   if (night === 2) {
-    const a = new THREE.Mesh(new THREE.CylinderGeometry(28, 29, 0.6, 40), grassMat);
-    a.position.y = -0.3;
-    parent.add(a);
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(28, 29, 0.6, 40), grassMat);
-    b.position.set(70, -0.3, 0);
-    parent.add(b);
+    addIsland(parent, 0, 0, 28);
+    addIsland(parent, 70, 0, 28);
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(18, 0.25, 4), woodMat);
     bridge.position.set(35, 0.05, 0);
     parent.add(bridge);
@@ -49,24 +96,28 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): void {
     ] as const) {
       const pad = new THREE.Mesh(
         new THREE.CylinderGeometry(1, 1, 0.2, 16),
-        new THREE.MeshStandardMaterial({ color: C.sand, emissive: 0x332200, emissiveIntensity: 0.3 }),
+        new THREE.MeshStandardMaterial({ color: C.sand, emissive: 0x5a4018, emissiveIntensity: 0.35 }),
       );
       pad.position.set(p[0], p[1], p[2]);
       parent.add(pad);
     }
   }
   if (night === 3) {
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(45, 46, 0.6, 48), grassMat);
-    base.position.y = -0.3;
-    parent.add(base);
+    addIsland(parent, 0, 0, 45, 0.32);
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(12, 24, 32),
-      new THREE.MeshStandardMaterial({ color: C.grass, roughness: 0.9, side: THREE.DoubleSide }),
+      new THREE.MeshStandardMaterial({
+        color: C.grass,
+        emissive: C.grassGlow,
+        emissiveIntensity: 0.35,
+        roughness: 0.9,
+        side: THREE.DoubleSide,
+      }),
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 3;
     parent.add(ring);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.3, 24), grassMat);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.3, 24), grassMat());
     top.position.y = 6;
     parent.add(top);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 8, 12), woodMat);
@@ -74,11 +125,15 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): void {
     parent.add(tower);
     const pad = new THREE.Mesh(
       new THREE.CylinderGeometry(1, 1, 0.2, 16),
-      new THREE.MeshStandardMaterial({ color: C.sand }),
+      new THREE.MeshStandardMaterial({ color: C.sand, emissive: 0x5a4018, emissiveIntensity: 0.3 }),
     );
     pad.position.set(0, 3.15, 13);
     parent.add(pad);
   }
+
+  const clouds = createCloudField();
+  parent.add(clouds);
+  return clouds;
 }
 
 export { C };

@@ -1,14 +1,15 @@
 import { round3, roundVec3 } from "./math.js";
-import type { SimEvent, SimState } from "./types.js";
+import { fuelDisplay, playerCapacity, type SimEvent, type SimState, type Tuning } from "./types.js";
 
 function eventToJson(e: SimEvent): string {
   const base = { type: "event", tick: e.tick, name: e.type, data: e.data };
   return JSON.stringify(base);
 }
 
-export function snapshotLine(state: SimState): string {
+export function snapshotLine(state: SimState, tuning: Tuning): string {
   const snapState = state.paused && state.state === "playing" ? "paused" : state.state;
   const p = state.player;
+  const cap = playerCapacity(state, tuning);
   const obj = {
     type: "snapshot",
     tick: state.tick,
@@ -23,6 +24,7 @@ export function snapshotLine(state: SimState): string {
       vel: roundVec3(p.vel),
       flames: p.flames,
       carried: p.carried,
+      capacity: cap,
       grounded: p.grounded,
       invuln: p.invulnTicks > 0,
       dash_cd_s: round3(p.dashCdTicks / 60),
@@ -34,11 +36,15 @@ export function snapshotLine(state: SimState): string {
       pos: roundVec3(l.pos),
       lit: l.lit,
       deposited: l.deposited,
+      fuel: fuelDisplay(l.lit ? l.fuelSixtieths : 0),
+      ever_lit: l.everLit,
+      relit_count: l.relitCount,
     })),
     shades: state.shades.map((s) => ({
       id: s.id,
       pos: roundVec3(s.pos),
       state: s.state,
+      target_lantern_id: s.targetLanternId,
     })),
     motes_active: state.motes.length,
     motes: state.motes.map((m) => ({

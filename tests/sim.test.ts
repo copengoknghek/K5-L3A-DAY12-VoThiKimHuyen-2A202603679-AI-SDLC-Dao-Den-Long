@@ -156,33 +156,93 @@ describe("sim", () => {
     assert.equal(state.player.flames, 2);
   });
 
-  it("win all_lit when all lanterns lit", () => {
+  it("all lit no longer ends early — replaced by dawn_survived (v1.2)", () => {
     const scenario = {
       random_motes: false,
       random_shades: false,
       motes: [] as [number, number, number][],
       shades: [] as { pos: [number, number, number] }[],
       lanterns: [
-        { id: "L1", lit: true, deposited: 10 },
-        { id: "L2", lit: true, deposited: 10 },
-        { id: "L3", lit: true, deposited: 10 },
-        { id: "L4", lit: true, deposited: 10 },
-        { id: "L5", lit: false, deposited: 0, pos: [0, 0, 2] as [number, number, number] },
+        { id: "L1", lit: true, fuel: 100 },
+        { id: "L2", lit: true, fuel: 100 },
+        { id: "L3", lit: true, fuel: 100 },
+        { id: "L4", lit: true, fuel: 100 },
+        { id: "L5", lit: true, fuel: 100 },
       ],
-      player: { pos: [0, 0, 0] as [number, number, number], carried: 10, flames: 3 },
+      player: { pos: [0, 0, 0] as [number, number, number], flames: 3 },
       time_left_s: 100,
     };
-    const frames = [{ tick: 0, interact: true }, { tick: 1, interact: false }];
     const result = runHeadless({
       seed: 1,
       tuning,
       scenario,
-      frames,
-      ticks: 3,
+      frames: [],
+      ticks: 5,
       snapshotEvery: 100,
     });
     const last = JSON.parse(result.lines[result.lines.length - 1]);
-    assert.equal(last.state, "won");
+    assert.equal(last.state, "playing");
+  });
+
+  it("dawn_survived when enough lanterns lit at dawn", () => {
+    const scenario = {
+      random_motes: false,
+      random_shades: false,
+      motes: [] as [number, number, number][],
+      shades: [] as { pos: [number, number, number] }[],
+      lanterns: [
+        { id: "L1", lit: true, fuel: 80 },
+        { id: "L2", lit: true, fuel: 80 },
+        { id: "L3", lit: true, fuel: 80 },
+        { id: "L4", lit: false },
+        { id: "L5", lit: false },
+      ],
+      player: { flames: 3 },
+      time_left_s: 0.05,
+    };
+    const result = runHeadless({
+      seed: 1,
+      tuning,
+      scenario,
+      frames: [],
+      ticks: 10,
+      snapshotEvery: 100,
+    });
+    const go = result.lines
+      .map((l) => {
+        try {
+          return JSON.parse(l);
+        } catch {
+          return null;
+        }
+      })
+      .find((e) => e?.name === "game_over");
+    assert.ok(go);
+    assert.equal(go.data.reason, "dawn_survived");
+    assert.equal(result.finalState.state, "won");
+  });
+
+  it("lantern_out when fuel depletes", () => {
+    let state = createInitialState({
+      seed: 1,
+      scenario: {
+        random_motes: false,
+        random_shades: false,
+        motes: [],
+        shades: [],
+        lanterns: [{ id: "L1", lit: true, fuel: 0.05 }],
+      },
+      tuning,
+    });
+    const held = DEFAULT_HELD;
+    let ev: ReturnType<typeof step> = [];
+    for (let i = 0; i < 5; i++) {
+      ev = step(state, tuning, held, held);
+      if (ev.some((e) => e.type === "lantern_out")) break;
+    }
+    assert.ok(ev.some((e) => e.type === "lantern_out"));
+    assert.equal(state.lanterns[0].lit, false);
+    assert.equal(state.lanterns[0].everLit, true);
   });
 
   it("deterministic JSONL for same seed scenario inputs", () => {
@@ -274,7 +334,7 @@ describe("phase-2 features", () => {
     assert.ok(result.lines.some((l) => l.includes("drifter_steal")));
   });
 
-  it("contract v1.1 keys present in snapshot", () => {
+  it("contract v1.2 keys present in snapshot", () => {
     const result = runHeadless({
       seed: 1,
       night: 3,
@@ -287,6 +347,9 @@ describe("phase-2 features", () => {
     const snap = JSON.parse(result.lines[0]);
     assert.equal(snap.night, 3);
     assert.ok(snap.wind);
+    assert.ok("capacity" in snap.player);
+    assert.ok("fuel" in snap.lanterns[0]);
+    assert.ok("ever_lit" in snap.lanterns[0]);
     assert.ok("dash_cd_s" in snap.player);
     assert.ok(Array.isArray(snap.drifters));
     assert.ok(Array.isArray(snap.charms));
