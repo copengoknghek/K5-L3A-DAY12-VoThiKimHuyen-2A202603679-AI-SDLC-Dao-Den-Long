@@ -10,7 +10,8 @@
     "rootDir": ".",
     "declaration": false,
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node"]
   },
   "include": ["src/sim/**/*.ts", "src/headless/**/*.ts", "tests/**/*.ts"]
 }

@@ -1,0 +1,6 @@
+{
+  "frames": [
+    { "tick": 0, "dash": true, "cam_yaw_deg": 0 },
+    { "tick": 1, "dash": false }
+  ]
+}

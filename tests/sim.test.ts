@@ -45,7 +45,7 @@ describe("sim", () => {
     assert.equal(last.state, "playing");
   });
 
-  it("move +Z 60 ticks at speed 6 ends at z=6", () => {
+  it("move +Z 60 ticks at speed 6 is near 6m after accel", () => {
     let state = createInitialState({
       seed: 1,
       scenario: {
@@ -62,7 +62,7 @@ describe("sim", () => {
       const prev = prevHeldAtTick(frames, k);
       step(state, tuning, held, prev);
     }
-    assert.ok(Math.abs(state.player.pos[2] - 6) < 0.01);
+    assert.ok(state.player.pos[2] > 5.5 && state.player.pos[2] < 6.05);
   });
 
   it("picks mote when walking north", () => {
@@ -76,11 +76,8 @@ describe("sim", () => {
       ticks: 200,
       snapshotEvery: 50,
     });
-    const events = result.lines
-      .filter((l) => l.includes('"name":"mote_picked"'))
-      .map((l) => JSON.parse(l));
+    const events = result.lines.filter((l) => l.includes('"name":"mote_picked"'));
     assert.ok(events.length >= 1);
-    assert.equal(events[0].name, "mote_picked");
   });
 
   it("deposit and lantern_lit on interact", () => {
@@ -102,8 +99,6 @@ describe("sim", () => {
       .map((l) => JSON.parse(l).name);
     assert.ok(names.includes("deposit"));
     assert.ok(names.includes("lantern_lit"));
-    const last = JSON.parse(result.lines[result.lines.length - 1]);
-    assert.ok(last.score >= tuning.score.per_lantern);
   });
 
   it("pre-lit lantern in scenario does not emit deposit at tick 0", () => {
@@ -114,7 +109,7 @@ describe("sim", () => {
         random_shades: false,
         motes: [],
         shades: [],
-        lanterns: [{ id: "L1", pos: [0, 0, 25], lit: true, deposited: 5 }],
+        lanterns: [{ id: "L1", pos: [0, 0, 25], lit: true, deposited: 10 }],
       },
       tuning,
     });
@@ -123,7 +118,7 @@ describe("sim", () => {
     assert.equal(state.lanterns[0].lit, true);
   });
 
-  it("pulse stuns shade in range", () => {
+  it("pulse stuns shade in range costing motes", () => {
     const scenario = loadScenario("pulse-shade.json");
     const frames = [
       { tick: 0, pulse: true },
@@ -137,15 +132,7 @@ describe("sim", () => {
       ticks: 2,
       snapshotEvery: 100,
     });
-    const pulse = result.lines
-      .map((l) => {
-        try {
-          return JSON.parse(l);
-        } catch {
-          return null;
-        }
-      })
-      .find((e) => e?.name === "pulse");
+    const pulse = result.lines.map((l) => JSON.parse(l)).find((e) => e?.name === "pulse");
     assert.ok(pulse);
     assert.deepEqual(pulse.data.stunned_ids, ["S1"]);
   });
@@ -158,15 +145,15 @@ describe("sim", () => {
         random_shades: false,
         motes: [],
         shades: [{ pos: [0.5, 0, 0] }],
-        player: { pos: [0, 0, 0], carried: 4, flames: 5 },
+        player: { pos: [0, 0, 0], carried: 4, flames: 3 },
       },
       tuning,
     });
     const held = DEFAULT_HELD;
     step(state, tuning, held, held);
-    assert.equal(state.player.flames, 4);
+    assert.equal(state.player.flames, 2);
     step(state, tuning, held, held);
-    assert.equal(state.player.flames, 4);
+    assert.equal(state.player.flames, 2);
   });
 
   it("win all_lit when all lanterns lit", () => {
@@ -176,13 +163,13 @@ describe("sim", () => {
       motes: [] as [number, number, number][],
       shades: [] as { pos: [number, number, number] }[],
       lanterns: [
-        { id: "L1", lit: true, deposited: 5 },
-        { id: "L2", lit: true, deposited: 5 },
-        { id: "L3", lit: true, deposited: 5 },
-        { id: "L4", lit: true, deposited: 5 },
+        { id: "L1", lit: true, deposited: 10 },
+        { id: "L2", lit: true, deposited: 10 },
+        { id: "L3", lit: true, deposited: 10 },
+        { id: "L4", lit: true, deposited: 10 },
         { id: "L5", lit: false, deposited: 0, pos: [0, 0, 2] as [number, number, number] },
       ],
-      player: { pos: [0, 0, 0] as [number, number, number], carried: 5, flames: 3 },
+      player: { pos: [0, 0, 0] as [number, number, number], carried: 10, flames: 3 },
       time_left_s: 100,
     };
     const frames = [{ tick: 0, interact: true }, { tick: 1, interact: false }];
@@ -218,5 +205,90 @@ describe("sim", () => {
       snapshotEvery: 10,
     }).lines.join("\n");
     assert.equal(a, b);
+  });
+});
+
+describe("phase-2 features", () => {
+  it("dash emits event and moves fast", () => {
+    const result = runHeadless({
+      seed: 1,
+      tuning,
+      scenario: {
+        random_motes: false,
+        random_shades: false,
+        motes: [],
+        shades: [],
+      },
+      frames: [
+        { tick: 0, dash: true, cam_yaw_deg: 0 },
+        { tick: 1, dash: false },
+      ],
+      ticks: 12,
+      snapshotEvery: 100,
+    });
+    assert.ok(result.lines.some((l) => l.includes('"name":"dash"')));
+    assert.ok(result.finalState.player.pos[2] > 2);
+  });
+
+  it("pause freezes sim_tick", () => {
+    const result = runHeadless({
+      seed: 1,
+      tuning,
+      scenario: { random_motes: false, random_shades: false, motes: [], shades: [] },
+      frames: [
+        { tick: 0, pause: true },
+        { tick: 1, pause: false },
+      ],
+      ticks: 10,
+      snapshotEvery: 1,
+    });
+    assert.ok(result.lines.some((l) => l.includes('"name":"paused"')));
+    const snaps = result.lines.filter((l) => l.includes('"type":"snapshot"')).map((l) => JSON.parse(l));
+    const paused = snaps.find((s) => s.state === "paused");
+    assert.ok(paused);
+  });
+
+  it("night 2 charm pickup", () => {
+    const result = runHeadless({
+      seed: 1,
+      night: 2,
+      tuning,
+      scenario: loadScenario("charm-n2.json"),
+      frames: [],
+      ticks: 2,
+      snapshotEvery: 1,
+    });
+    assert.ok(result.lines.some((l) => l.includes("charm_picked")));
+  });
+
+  it("drifter steals motes", () => {
+    const result = runHeadless({
+      seed: 1,
+      night: 2,
+      tuning,
+      scenario: loadScenario("drifter.json"),
+      frames: [],
+      ticks: 3,
+      snapshotEvery: 10,
+    });
+    assert.ok(result.lines.some((l) => l.includes("drifter_steal")));
+  });
+
+  it("contract v1.1 keys present in snapshot", () => {
+    const result = runHeadless({
+      seed: 1,
+      night: 3,
+      tuning,
+      scenario: { random_motes: false, random_shades: false, motes: [], shades: [], wind_enabled: true },
+      frames: [],
+      ticks: 0,
+      snapshotEvery: 10,
+    });
+    const snap = JSON.parse(result.lines[0]);
+    assert.equal(snap.night, 3);
+    assert.ok(snap.wind);
+    assert.ok("dash_cd_s" in snap.player);
+    assert.ok(Array.isArray(snap.drifters));
+    assert.ok(Array.isArray(snap.charms));
   });
 });

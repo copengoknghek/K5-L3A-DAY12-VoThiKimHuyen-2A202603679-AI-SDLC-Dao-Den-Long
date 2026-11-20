@@ -2,82 +2,32 @@ import { round3, roundVec3 } from "./math.js";
 import type { SimEvent, SimState } from "./types.js";
 
 function eventToJson(e: SimEvent): string {
-  if (e.type === "mote_picked") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "mote_picked",
-      data: { carried: e.data.carried },
-    });
-  }
-  if (e.type === "deposit") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "deposit",
-      data: {
-        lantern_id: e.data.lantern_id,
-        amount: e.data.amount,
-        deposited: e.data.deposited,
-      },
-    });
-  }
-  if (e.type === "lantern_lit") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "lantern_lit",
-      data: { lantern_id: e.data.lantern_id },
-    });
-  }
-  if (e.type === "pulse") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "pulse",
-      data: { stunned_ids: e.data.stunned_ids },
-    });
-  }
-  if (e.type === "player_hit") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "player_hit",
-      data: {
-        by: e.data.by,
-        flames: e.data.flames,
-        dropped: e.data.dropped,
-      },
-    });
-  }
-  if (e.type === "shade_spawned") {
-    return JSON.stringify({
-      type: "event",
-      tick: e.tick,
-      name: "shade_spawned",
-      data: { id: e.data.id },
-    });
-  }
-  return JSON.stringify({
-    type: "event",
-    tick: e.tick,
-    name: "game_over",
-    data: { result: e.data.result, reason: e.data.reason },
-  });
+  const base = { type: "event", tick: e.tick, name: e.type, data: e.data };
+  return JSON.stringify(base);
 }
 
 export function snapshotLine(state: SimState): string {
+  const snapState = state.paused && state.state === "playing" ? "paused" : state.state;
+  const p = state.player;
   const obj = {
     type: "snapshot",
     tick: state.tick,
-    sim_tick: state.tick,
-    state: state.state,
+    sim_tick: state.simTick,
+    night: state.night,
+    state: snapState,
     time_left_s: round3(state.timeLeftS),
     score: state.score,
+    wind: { active: state.windActive, dir_deg: round3(state.windDirDeg) },
     player: {
-      pos: roundVec3(state.player.pos),
-      flames: state.player.flames,
-      carried: state.player.carried,
+      pos: roundVec3(p.pos),
+      vel: roundVec3(p.vel),
+      flames: p.flames,
+      carried: p.carried,
+      grounded: p.grounded,
+      invuln: p.invulnTicks > 0,
+      dash_cd_s: round3(p.dashCdTicks / 60),
+      pulse_cd_s: round3(p.pulseCdTicks / 60),
+      charm_s: round3(p.charmTicks / 60),
     },
     lanterns: state.lanterns.map((l) => ({
       id: l.id,
@@ -94,6 +44,21 @@ export function snapshotLine(state: SimState): string {
     motes: state.motes.map((m) => ({
       id: m.id,
       pos: roundVec3(m.pos),
+      kind: m.kind,
+      ttl_s: m.ttl === null ? null : round3(m.ttl / 60),
+    })),
+    drifters: state.drifters
+      .filter((d) => d.state !== "removed")
+      .map((d) => ({
+        id: d.id,
+        pos: roundVec3(d.pos),
+        state: d.state,
+        stolen: d.stolen,
+      })),
+    charms: state.charms.map((c) => ({
+      id: c.id,
+      available: c.available,
+      respawn_s: round3(c.respawnTicks / 60),
     })),
   };
   return JSON.stringify(obj);

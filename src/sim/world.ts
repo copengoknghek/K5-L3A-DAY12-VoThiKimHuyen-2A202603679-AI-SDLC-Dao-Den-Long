@@ -1,60 +1,18 @@
-import { mulberry32, randRange } from "./rng.js";
-import type { Scenario, SimState, Tuning, Vec3 } from "./types.js";
-import {
-  ISLAND_RADIUS,
-  LANTERN_RING_RADIUS,
-  PLAY_MOTE_COUNT,
-  PLAY_SHADE_COUNT,
+import { FLAMES_MAX, NIGHT_DURATION, START_MOTES } from "./constants.js";
+import { mapForNight, type NightMap } from "./maps.js";
+import { distXZ } from "./math.js";
+import type {
+  Scenario,
+  SimCharm,
+  SimMote,
+  SimShade,
+  SimState,
+  Tuning,
+  Vec3,
 } from "./types.js";
-
-function defaultLanterns(count: number): SimState["lanterns"] {
-  const lanterns: SimState["lanterns"] = [];
-  for (let i = 0; i < count; i++) {
-    const angle = (i * 2 * Math.PI) / count;
-    const x = Math.sin(angle) * LANTERN_RING_RADIUS;
-    const z = Math.cos(angle) * LANTERN_RING_RADIUS;
-    lanterns.push({
-      id: `L${i + 1}`,
-      pos: [x, 0, z],
-      lit: false,
-      deposited: 0,
-    });
-  }
-  return lanterns;
-}
 
 function vecFromRaw(raw: Vec3 | number[]): Vec3 {
   return [raw[0], raw[1] ?? 0, raw[2]];
-}
-
-function spawnPlayMotes(rng: () => number, count: number): SimState["motes"] {
-  const motes: SimState["motes"] = [];
-  for (let i = 0; i < count; i++) {
-    const angle = rng() * Math.PI * 2;
-    const r = randRange(rng, 3, ISLAND_RADIUS - 5);
-    motes.push({
-      id: `M${i + 1}`,
-      pos: [Math.sin(angle) * r, 0, Math.cos(angle) * r],
-    });
-  }
-  motes.sort((a, b) => a.id.localeCompare(b.id));
-  return motes;
-}
-
-function spawnPlayShades(rng: () => number, count: number): SimState["shades"] {
-  const shades: SimState["shades"] = [];
-  for (let i = 0; i < count; i++) {
-    const angle = rng() * Math.PI * 2;
-    const r = randRange(rng, 12, ISLAND_RADIUS - 8);
-    shades.push({
-      id: `S${i + 1}`,
-      pos: [Math.sin(angle) * r, 1, Math.cos(angle) * r],
-      state: "chase",
-      stunS: 0,
-    });
-  }
-  shades.sort((a, b) => a.id.localeCompare(b.id));
-  return shades;
 }
 
 export function parseScenario(json: unknown): Scenario {
@@ -64,20 +22,45 @@ export function parseScenario(json: unknown): Scenario {
   return json as Scenario;
 }
 
+function parseMotes(raw: Scenario["motes"]): SimMote[] {
+  if (!raw) return [];
+  return raw.map((m, i) => {
+    if (Array.isArray(m)) {
+      return {
+        id: `M${i + 1}`,
+        pos: vecFromRaw(m),
+        kind: "random" as const,
+        ttl: null,
+        interactDelay: 0,
+      };
+    }
+    return {
+      id: m.id ?? `M${i + 1}`,
+      pos: vecFromRaw(m.pos),
+      kind: m.kind ?? "random",
+      ttl: m.ttl_s !== undefined ? Math.round(m.ttl_s * 60) : null,
+      interactDelay: 0,
+    };
+  });
+}
+
 export function createInitialState(args: {
   seed: number;
   scenario: Scenario | null;
   tuning: Tuning;
+  night?: 1 | 2 | 3;
 }): SimState {
+  const night = args.night ?? 1;
   const { seed, scenario, tuning } = args;
-  const rng = mulberry32(seed);
-  const count = tuning.lantern_count_night1;
+  const map: NightMap = mapForNight(night);
 
-  let lanterns = defaultLanterns(count);
-  let motes: SimState["motes"] = [];
-  let shades: SimState["shades"] = [];
-  const randomMotes = scenario?.random_motes !== false;
-  const randomShades = scenario?.random_shades !== false;
+  let lanterns = map.lanterns.map((l) => ({
+    id: l.id,
+    pos: [...l.pos] as Vec3,
+    lit: false,
+    deposited: 0,
+    pushTicks: 0,
+  }));
 
   if (scenario?.lanterns) {
     for (const patch of scenario.lanterns) {
@@ -92,58 +75,124 @@ export function createInitialState(args: {
           pos: patch.pos ? vecFromRaw(patch.pos) : [0, 0, 0],
           lit: patch.lit ?? false,
           deposited: patch.deposited ?? 0,
+          pushTicks: 0,
         });
       }
     }
-    lanterns.sort((a, b) => a.id.localeCompare(b.id));
+    lanterns.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }
 
+  const randomMotes = scenario?.random_motes !== false;
+  const randomShades = scenario?.random_shades !== false;
+  const randomDrifters = scenario?.random_drifters !== false;
+  const windEnabled = scenario?.wind_enabled !== false && night === 3;
+
+  let motes: SimMote[] = [];
   if (scenario?.motes) {
-    motes = scenario.motes.map((m, i) => ({
-      id: `M${i + 1}`,
-      pos: vecFromRaw(m),
-    }));
+    motes = parseMotes(scenario.motes);
   } else if (randomMotes) {
-    motes = spawnPlayMotes(rng, PLAY_MOTE_COUNT);
+    const pts = map.moteSpawns.slice(0, START_MOTES);
+    motes = pts.map((p, i) => ({
+      id: `M${i + 1}`,
+      pos: [...p] as Vec3,
+      kind: "random" as const,
+      ttl: null,
+      interactDelay: 0,
+    }));
   }
 
+  let shades: SimShade[] = [];
   if (scenario?.shades) {
     shades = scenario.shades.map((s, i) => ({
       id: s.id ?? `S${i + 1}`,
       pos: vecFromRaw(s.pos),
-      state: "chase" as const,
-      stunS: 0,
+      state: s.state ?? "wander",
+      stateTicks: s.state_ticks_left ?? 0,
+      interactDelay: 0,
     }));
   } else if (randomShades) {
-    shades = spawnPlayShades(rng, PLAY_SHADE_COUNT);
+    shades = [];
   }
 
-  const durationS = scenario?.time_left_s ?? tuning.night1_duration_s;
-  const playerFlames =
-    scenario?.player?.flames ?? tuning.flames;
-  const playerCarried = scenario?.player?.carried ?? 0;
-  const playerPos: Vec3 = scenario?.player?.pos
-    ? vecFromRaw(scenario.player.pos)
-    : [0, 0, 0];
+  let drifters: SimState["drifters"] = [];
+  if (scenario?.drifters) {
+    drifters = scenario.drifters.map((d, i) => ({
+      id: d.id ?? `D${i + 1}`,
+      pos: vecFromRaw(d.pos),
+      state: d.state ?? "idle",
+      stolen: d.stolen ?? 0,
+      stateTicks: 0,
+      interactDelay: 0,
+      facing: [1, 0] as [number, number],
+    }));
+  } else if (!randomDrifters) {
+    drifters = [];
+  }
+
+  let charms: SimCharm[] = map.charms.map((c) => ({
+    id: c.id,
+    pos: [...c.pos] as Vec3,
+    available: true,
+    respawnTicks: 0,
+  }));
+  if (scenario?.charms) {
+    charms = scenario.charms.map((c) => ({
+      id: c.id,
+      pos: c.pos ? vecFromRaw(c.pos) : [0, 0, 0],
+      available: c.available ?? true,
+      respawnTicks: c.respawn_s !== undefined ? Math.round(c.respawn_s * 60) : 0,
+    }));
+  }
+
+  const durationS =
+    scenario?.time_left_s ??
+    (night === 2 ? tuning.night2_duration_s : night === 3 ? tuning.night3_duration_s : tuning.night1_duration_s) ??
+    NIGHT_DURATION[night];
+
+  const p = scenario?.player;
+  const pos: Vec3 = p?.pos ? vecFromRaw(p.pos) : [...map.spawn];
 
   return {
     tick: 0,
+    simTick: 0,
+    night,
+    paused: false,
     state: "playing",
     timeLeftS: durationS,
     durationS,
     score: 0,
     player: {
-      pos: [...playerPos] as Vec3,
-      vy: 0,
-      flames: playerFlames,
-      carried: playerCarried,
-      invulnS: 0,
+      pos,
+      vel: [0, 0, 0],
+      facing: [...map.facing],
+      grounded: true,
+      flames: p?.flames ?? tuning.flames ?? FLAMES_MAX,
+      carried: p?.carried ?? 0,
+      invulnTicks: p?.invuln_ticks ?? 0,
+      dashTicks: 0,
+      dashCdTicks: p?.dash_cd_ticks ?? 0,
+      pulseCdTicks: p?.pulse_cd_ticks ?? 0,
+      charmTicks: p?.charm_ticks ?? 0,
+      fallWaitTicks: 0,
+      launched: false,
     },
     lanterns,
     shades,
     motes,
-    pulseCooldownS: 0,
+    drifters,
+    charms,
     reason: null,
-    islandRadius: ISLAND_RADIUS,
+    windActive: false,
+    windDirDeg: 0,
+    windTicks: windEnabled ? 0 : -1,
+    rngState: seed >>> 0,
+    nextMoteId: motes.length + 1,
+    nextShadeId: shades.length + 1,
+    nextDrifterId: drifters.length + 1,
+    nightStartEmitted: false,
   };
+}
+
+export function moteOccupies(motes: SimMote[], spawn: Vec3): boolean {
+  return motes.some((m) => distXZ(m.pos, spawn) < 0.6);
 }

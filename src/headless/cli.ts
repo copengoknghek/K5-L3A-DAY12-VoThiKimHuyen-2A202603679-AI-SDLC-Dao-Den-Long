@@ -47,8 +47,8 @@ function main(): void {
       usage();
       process.exit(1);
     }
-    if (args.night !== 1) {
-      console.error("Only --night 1 is supported in Phase 1");
+    if (args.night !== 1 && args.night !== 2 && args.night !== 3) {
+      console.error("--night must be 1, 2, or 3");
       process.exit(1);
     }
     if (!Number.isInteger(args.seed) || !Number.isInteger(args.ticks) || (args.ticks as number) < 0) {
@@ -86,6 +86,7 @@ function main(): void {
       frames,
       ticks: args.ticks as number,
       snapshotEvery,
+      night: args.night as 1 | 2 | 3,
     });
 
     const outPath = resolve(String(args.out));

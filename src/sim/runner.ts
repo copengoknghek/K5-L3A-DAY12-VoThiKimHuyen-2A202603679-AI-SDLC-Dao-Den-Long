@@ -18,31 +18,36 @@ export function runHeadless(options: {
   frames: InputFrame[];
   ticks: number;
   snapshotEvery: number;
+  night?: 1 | 2 | 3;
 }): RunHeadlessResult {
   const { seed, tuning, scenario, frames, ticks, snapshotEvery } = options;
-  let state = createInitialState({ seed, scenario, tuning });
+  const night = options.night ?? 1;
+  const state = createInitialState({ seed, scenario, tuning, night });
   const lines: string[] = [];
 
   const writeSnapshot = (s: SimState) => {
-    if (s.tick % snapshotEvery === 0) {
-      lines.push(snapshotLine(s));
-    }
+    if (s.tick % snapshotEvery === 0) lines.push(snapshotLine(s));
   };
 
   writeSnapshot(state);
+  lines.push(
+    JSON.stringify({
+      type: "event",
+      tick: 0,
+      name: "night_start",
+      data: { night },
+    }),
+  );
 
   let run = 0;
   for (let k = 0; k < ticks; k++) {
     if (state.state !== "playing") break;
-
-    const held = frames.length ? heldAtTick(frames, k) : DEFAULT_HELD;
-    const prev = frames.length ? prevHeldAtTick(frames, k) : DEFAULT_HELD;
-
+    const held = frames.length ? heldAtTick(frames, k) : { ...DEFAULT_HELD };
+    const prev = frames.length ? prevHeldAtTick(frames, k) : { ...DEFAULT_HELD };
     const events = step(state, tuning, held, prev);
     lines.push(...eventsToLines(events));
     writeSnapshot(state);
     run += 1;
-
     if (state.state !== "playing") break;
   }
 

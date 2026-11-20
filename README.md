@@ -1,8 +1,8 @@
-# Đảo Đèn Lồng — Đêm 1 (Phase 1)
+# Đảo Đèn Lồng — Phase 2 (3 Đêm)
 
 <!-- Video demo: thêm link Release ở Phase 4 -->
 
-Game 3D: Mây thu đom đóm, thắp 5 Đèn Lồng Lớn, né Bóng Mực.
+Game 3D: Mây thắp đèn trên **Đảo Bến, Đảo Cau, Đảo Chuông**. Contract **v1.1**.
 
 ## Cài và chạy (≤ 3 lệnh)
 
@@ -12,43 +12,46 @@ npm run build
 npm run preview
 ```
 
-Mở **http://127.0.0.1:4173** — click canvas để khóa chuột.
+Mở **http://127.0.0.1:4173**
 
 ## Điều khiển
 
 | Phím | Hành động |
 |------|-----------|
-| WASD | Di chuyển (theo hướng camera) |
-| Chuột | Xoay camera |
+| W/S ↑↓ · A/D ←→ | Đi |
+| Chuột | Xoay (nhạy trong Cài đặt) |
 | Space | Nhảy |
-| E | Nạp đom đóm vào đèn gần nhất |
-| F | Tỏa sáng (xua Bóng Mực) |
-| R | Chơi lại sau thắng/thua |
+| Shift | Lướt |
+| E | Nạp đèn |
+| F | Tỏa Sáng (tốn 3 đom đóm) |
+| Esc / P | Tạm dừng |
 
-## Điểm
+## Điểm (chuẩn)
 
-- +10 mỗi đom đóm nhặt  
-- +100 mỗi đèn vừa thắp  
-- +25 mỗi Bóng Mực bị stun bởi pulse  
-- Khi **thắng**: thêm `floor(thời gian còn) × 1` + `flames còn × 20`
+- +10 mỗi đom đóm **nạp** vào đèn  
+- +100 mỗi đèn thắp  
+- +5 mỗi Bóng Mực trúng Tỏa Sáng  
+- Thắng đêm: `floor(giây còn)×2 + 50×Ngọn Lửa`  
+- Tổng game = tổng điểm các đêm **thắng**
 
-Chi tiết số trong [`game.contract.json`](game.contract.json) → `tuning`. Giả định: [`docs/notes/phase-1-assumptions.md`](docs/notes/phase-1-assumptions.md).
+Số liệu: [`game.contract.json`](game.contract.json). Spec: [`docs/notes/phase-2-assumptions.md`](docs/notes/phase-2-assumptions.md).
 
-## Headless (Test Contract v1.0)
+## Headless (Test Contract v1.1)
 
 ```bash
 node dist/src/headless/cli.js --seed 1 --night 1 --ticks 60 --out out.jsonl
 ```
 
-Thêm `--scenario path.json` và/hoặc `--inputs path.json`. Xem `npm test`.
+`--night` = 1, 2 hoặc 3.
 
 ## Sáng tạo của tôi
 
-- Đom đóm nhấp nháy (sin) và đèn sáng dần khi thắp — chỉ hiển thị Three.js, **không** đổi output headless.
+- Mesh Mây (nón lá, khăn đỏ), cỏ/cây Đêm 1, Web Audio — không đổi headless.
 
-## Bằng chứng Phase 1
+## Bằng chứng
 
-[`docs/proof/phase-1.md`](docs/proof/phase-1.md)
+- Phase 1: [`docs/proof/phase-1.md`](docs/proof/phase-1.md)  
+- Phase 2: [`docs/proof/phase-2.md`](docs/proof/phase-2.md)
 
 ---
 

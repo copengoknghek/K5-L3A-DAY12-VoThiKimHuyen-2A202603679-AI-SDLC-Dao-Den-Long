@@ -12,3 +12,10 @@ export function mulberry32(seed: number): () => number {
 export function randRange(rng: () => number, min: number, max: number): number {
   return min + rng() * (max - min);
 }
+
+export function stepRng(state: number): { value: number; next: number } {
+  let t = (state + 0x6d2b79f5) >>> 0;
+  let r = Math.imul(t ^ (t >>> 15), 1 | t);
+  r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+  return { value: ((r ^ (r >>> 14)) >>> 0) / 4294967296, next: t };
+}

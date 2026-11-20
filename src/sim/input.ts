@@ -54,6 +54,8 @@ export function heldAtTick(frames: InputFrame[], tick: number): HeldInput {
     jump: false,
     interact: false,
     pulse: false,
+    dash: false,
+    pause: false,
   };
   for (const f of frames) {
     if (f.tick > tick) break;
@@ -62,6 +64,8 @@ export function heldAtTick(frames: InputFrame[], tick: number): HeldInput {
     if (f.jump !== undefined) held.jump = f.jump;
     if (f.interact !== undefined) held.interact = f.interact;
     if (f.pulse !== undefined) held.pulse = f.pulse;
+    if (f.dash !== undefined) held.dash = f.dash;
+    if (f.pause !== undefined) held.pause = f.pause;
   }
   return held;
 }

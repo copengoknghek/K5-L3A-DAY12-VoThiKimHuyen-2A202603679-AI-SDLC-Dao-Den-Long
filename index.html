@@ -3,20 +3,56 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Đảo Đèn Lồng — Đêm 1</title>
+    <title>Đảo Đèn Lồng</title>
     <link rel="stylesheet" href="/src/client/style.css" />
   </head>
   <body>
-  <div id="hud">
-    <div class="hud-row"><span class="label">Ánh sáng (flames)</span><span id="hud-flames">—</span></div>
-    <div class="hud-row"><span class="label">Đom đóm mang</span><span id="hud-carried">—</span></div>
-    <div class="hud-row"><span class="label">Đèn đã thắp</span><span id="hud-lanterns">—</span></div>
-    <div class="hud-row"><span class="label">Điểm</span><span id="hud-score">—</span></div>
-    <div class="hud-row"><span class="label">Còn lại</span><span id="hud-time">—</span></div>
-    <p id="hud-status" class="status"></p>
-    <p class="hint">Click để chơi · WASD · Space nhảy · E nạp đèn · F tỏa sáng · R chơi lại</p>
-    <button type="button" id="btn-replay" hidden>Chơi lại</button>
-  </div>
+    <div id="overlay-menu" class="overlay">
+      <h1>Đảo Đèn Lồng</h1>
+      <p class="story">Ba đêm. Ba hòn đảo. Thắp lại ánh sáng.</p>
+      <button type="button" id="btn-menu-play">Chơi</button>
+      <button type="button" id="btn-menu-settings">Cài đặt</button>
+    </div>
+    <div id="overlay-intro" class="overlay" hidden>
+      <h1 id="intro-title">Đêm 1 — Đảo Bến</h1>
+      <p class="story" id="intro-story"></p>
+      <button type="button" id="btn-intro">Bắt đầu đêm này</button>
+    </div>
+    <div id="overlay-result" class="overlay" hidden>
+      <h1 id="result-title"></h1>
+      <p id="result-score"></p>
+      <button type="button" id="btn-result">Tiếp</button>
+    </div>
+    <div id="overlay-pause" class="overlay" hidden>
+      <h1>Tạm dừng</h1>
+      <button type="button" id="btn-resume">Tiếp tục</button>
+      <button type="button" id="btn-restart-night">Chơi lại Đêm</button>
+      <button type="button" id="btn-pause-settings">Cài đặt</button>
+      <button type="button" id="btn-to-menu">Về menu</button>
+    </div>
+    <div id="overlay-settings" class="overlay" hidden>
+      <h1>Cài đặt</h1>
+      <label>Âm lượng <input type="range" id="set-vol" min="0" max="100" /></label>
+      <label>Độ nhạy chuột <input type="range" id="set-sens" min="5" max="40" /></label>
+      <button type="button" id="btn-settings-close">Đóng</button>
+    </div>
+
+    <div id="hud" hidden>
+      <div id="hud-top">
+        <div id="hud-flames" class="hud-flames"></div>
+        <div id="hud-clock">05:00</div>
+        <div id="hud-right"><span id="hud-lanterns">0/5</span> · <span id="hud-score">0</span></div>
+      </div>
+      <p id="hud-prompt" class="prompt"></p>
+      <div id="hud-bottom">
+        <div id="mote-bar"></div>
+        <div class="cds">
+          <span id="cd-dash">Lướt</span>
+          <span id="cd-pulse">Tỏa</span>
+        </div>
+      </div>
+      <div id="lantern-arrow" hidden>▲</div>
+    </div>
     <canvas id="game"></canvas>
     <script type="module" src="/src/client/main.ts"></script>
   </body>
