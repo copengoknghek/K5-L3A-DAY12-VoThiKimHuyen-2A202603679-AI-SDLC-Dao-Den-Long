@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đảo Đèn Lồng — Đêm 1</title>
+    <link rel="stylesheet" href="/src/client/style.css" />
+  </head>
+  <body>
+  <div id="hud">
+    <div class="hud-row"><span class="label">Ánh sáng (flames)</span><span id="hud-flames">—</span></div>
+    <div class="hud-row"><span class="label">Đom đóm mang</span><span id="hud-carried">—</span></div>
+    <div class="hud-row"><span class="label">Đèn đã thắp</span><span id="hud-lanterns">—</span></div>
+    <div class="hud-row"><span class="label">Điểm</span><span id="hud-score">—</span></div>
+    <div class="hud-row"><span class="label">Còn lại</span><span id="hud-time">—</span></div>
+    <p id="hud-status" class="status"></p>
+    <p class="hint">Click để chơi · WASD · Space nhảy · E nạp đèn · F tỏa sáng · R chơi lại</p>
+    <button type="button" id="btn-replay" hidden>Chơi lại</button>
+  </div>
+    <canvas id="game"></canvas>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>
