@@ -82,11 +82,13 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
 
   if (night === 1) {
     addIsland(parent, 0, 0, 40);
-    addGrassAndTrees(parent);
+    addGrassAndTrees(parent, 0, 0, 40, undefined, 4242, 1);
   }
   if (night === 2) {
     addIsland(parent, 0, 0, 28);
     addIsland(parent, 70, 0, 28);
+    addGrassAndTrees(parent, 0, 0, 28, undefined, 4242, 2);
+    addGrassAndTrees(parent, 70, 0, 28, undefined, 5252, 2);
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(18, 0.25, 4), woodMat);
     bridge.position.set(35, 0.05, 0);
     parent.add(bridge);
@@ -120,8 +122,8 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
     const top = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.3, 24), grassMat());
     top.position.y = 6;
     parent.add(top);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 8, 12), woodMat);
-    tower.position.y = 10;
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 2.1, 7.5, 12), woodMat);
+    tower.position.set(0, 9.75, 0);
     parent.add(tower);
     const pad = new THREE.Mesh(
       new THREE.CylinderGeometry(1, 1, 0.2, 16),
@@ -129,6 +131,7 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
     );
     pad.position.set(0, 3.15, 13);
     parent.add(pad);
+    addGrassAndTrees(parent, 0, 0, 45, 0.32, 6060, 3);
   }
 
   const clouds = createCloudField();

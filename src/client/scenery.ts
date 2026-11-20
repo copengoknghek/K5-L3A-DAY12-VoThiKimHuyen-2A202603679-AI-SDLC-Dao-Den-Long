@@ -39,8 +39,19 @@ type CloudDrift = {
   speed: number;
 };
 
-export function addGrassAndTrees(scene: THREE.Object3D): void {
-  const rng = mulberry32(4242);
+export function addGrassAndTrees(
+  scene: THREE.Object3D,
+  cx = 0,
+  cz = 0,
+  radius = ISLAND_RADIUS,
+  _rise = TERRACE_RISE,
+  seed = 4242,
+  night: 1 | 2 | 3 = 1,
+): void {
+  void _rise;
+  const rng = mulberry32(seed);
+  const density = (radius / 40) ** 2;
+  const yAt = (wx: number, wz: number) => visualGroundY(wx, wz, 0, night);
   const grassDark = new THREE.MeshStandardMaterial({
     color: 0x5cb85a,
     emissive: 0x143818,
@@ -56,9 +67,9 @@ export function addGrassAndTrees(scene: THREE.Object3D): void {
   const bladeGeo = new THREE.BoxGeometry(0.07, 0.42, 0.035);
   const tuftGeo = new THREE.ConeGeometry(0.22, 0.55, 5);
   const grassLayers = [
-    { count: 1400, mat: grassDark, height: [0.55, 1.15] as [number, number] },
-    { count: 900, mat: grassLight, height: [0.35, 0.85] as [number, number] },
-    { count: 320, mat: grassLight, geo: tuftGeo, height: [0.7, 1.35] as [number, number] },
+    { count: Math.max(400, Math.round(1400 * density)), mat: grassDark, height: [0.55, 1.15] as [number, number] },
+    { count: Math.max(280, Math.round(900 * density)), mat: grassLight, height: [0.35, 0.85] as [number, number] },
+    { count: Math.max(120, Math.round(320 * density)), mat: grassLight, geo: tuftGeo, height: [0.7, 1.35] as [number, number] },
   ];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -69,10 +80,14 @@ export function addGrassAndTrees(scene: THREE.Object3D): void {
     const mesh = new THREE.InstancedMesh(geo, layer.mat, layer.count);
     for (let i = 0; i < layer.count; i++) {
       const angle = rng() * Math.PI * 2;
-      const r = 1.5 + rng() * (ISLAND_RADIUS - 2.5);
-      const gy = terraceTopY(r, ISLAND_RADIUS);
+      const r = 1.5 + rng() * (radius - 2.5);
+      const lx = cx + Math.sin(angle) * r;
+      const lz = cz + Math.cos(angle) * r;
       const jitter = (rng() - 0.5) * 0.35;
-      pos.set(Math.sin(angle) * r + jitter, gy + 0.08 + rng() * 0.12, Math.cos(angle) * r + jitter * 0.6);
+      const wx = lx + jitter;
+      const wz = lz + jitter * 0.6;
+      const gy = yAt(wx, wz);
+      pos.set(wx, gy + 0.08 + rng() * 0.12, wz);
       q.setFromEuler(new THREE.Euler(0, angle + rng() * 0.9, (rng() - 0.5) * 0.45));
       const sy = layer.height[0] + rng() * (layer.height[1] - layer.height[0]);
       const sx = 0.75 + rng() * 0.55;
@@ -99,18 +114,22 @@ export function addGrassAndTrees(scene: THREE.Object3D): void {
     roughness: 0.74,
   });
 
-  for (let i = 0; i < 48; i++) {
+  const treeCount = Math.max(22, Math.round(48 * density));
+  const deco = { night, yAt };
+  for (let i = 0; i < treeCount; i++) {
     const angle = rng() * Math.PI * 2;
-    const r = 6 + rng() * (ISLAND_RADIUS - 8);
-    const x = Math.sin(angle) * r;
-    const z = Math.cos(angle) * r;
+    const r = 6 + rng() * (radius - 8);
+    const wx = cx + Math.sin(angle) * r;
+    const wz = cz + Math.cos(angle) * r;
+    if (night === 3 && Math.hypot(wx, wz) < 9.5) continue;
     const kind = rng();
-    if (kind < 0.35) addBushCluster(scene, x, z, leafMat, leafBright, 0.85 + rng() * 0.55);
-    else if (kind < 0.55) addCanopy(scene, x, z, trunkMat, leafMat, 1);
-    else if (kind < 0.78) addTallTree(scene, x, z, trunkDark, leafBright);
-    else addPalm(scene, x, z, trunkMat, leafMat, 0.9 + rng() * 0.4);
+    if (kind < 0.35) addBushCluster(scene, wx, wz, leafMat, leafBright, 0.85 + rng() * 0.55, deco);
+    else if (kind < 0.55) addCanopy(scene, wx, wz, trunkMat, leafMat, 1, deco);
+    else if (kind < 0.78) addTallTree(scene, wx, wz, trunkDark, leafBright, 1, deco);
+    else addPalm(scene, wx, wz, trunkMat, leafMat, 0.9 + rng() * 0.4, deco);
   }
 
+  const lm = radius / 40;
   const landmarks: [number, number, "tall" | "bush"][] = [
     [-30, 10, "tall"],
     [24, -28, "tall"],
@@ -123,15 +142,16 @@ export function addGrassAndTrees(scene: THREE.Object3D): void {
     [-36, 14, "tall"],
     [36, -10, "tall"],
   ];
-  for (const [x, z, kind] of landmarks) {
-    if (kind === "tall") addTallTree(scene, x, z, trunkDark, leafBright, 1.35);
-    else addBushCluster(scene, x, z, leafMat, leafBright, 1.4);
+  for (const [lx, lz, kind] of landmarks) {
+    const wx = cx + lx * lm;
+    const wz = cz + lz * lm;
+    if (night === 3 && Math.hypot(wx, wz) < 9.5) continue;
+    if (kind === "tall") addTallTree(scene, wx, wz, trunkDark, leafBright, 1.35, deco);
+    else addBushCluster(scene, wx, wz, leafMat, leafBright, 1.4, deco);
   }
 }
 
-function islandY(x: number, z: number): number {
-  return terraceTopY(Math.hypot(x, z), ISLAND_RADIUS);
-}
+type DecoCtx = { night: 1 | 2 | 3; yAt: (x: number, z: number) => number };
 
 function addBushCluster(
   scene: THREE.Object3D,
@@ -140,6 +160,7 @@ function addBushCluster(
   leafMat: THREE.Material,
   leafBright: THREE.Material,
   scale = 1,
+  deco?: DecoCtx,
 ): void {
   const group = new THREE.Group();
   const mats = [leafMat, leafBright];
@@ -163,7 +184,8 @@ function addBushCluster(
   );
   grassRing.position.y = 0.04;
   group.add(grassRing);
-  group.position.set(x, islandY(x, z), z);
+  const gy = deco?.yAt(x, z) ?? terraceTopY(Math.hypot(x, z), ISLAND_RADIUS);
+  group.position.set(x, gy, z);
   scene.add(group);
 }
 
@@ -174,6 +196,7 @@ function addCanopy(
   trunkMat: THREE.Material,
   leafMat: THREE.Material,
   scale = 1,
+  deco?: DecoCtx,
 ): void {
   const group = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 2.4, 6), trunkMat);
@@ -192,7 +215,8 @@ function addCanopy(
     ball.scale.setScalar(scale);
     group.add(ball);
   }
-  group.position.set(x, islandY(x, z), z);
+  const gy = deco?.yAt(x, z) ?? terraceTopY(Math.hypot(x, z), ISLAND_RADIUS);
+  group.position.set(x, gy, z);
   scene.add(group);
 }
 
@@ -204,6 +228,7 @@ function addTallTree(
   trunkMat: THREE.Material,
   leafMat: THREE.Material,
   scale = 1.1,
+  deco?: DecoCtx,
 ): void {
   const group = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.32, 4.2, 7), trunkMat);
@@ -226,7 +251,8 @@ function addTallTree(
     ball.scale.setScalar(scale);
     group.add(ball);
   }
-  group.position.set(x, islandY(x, z), z);
+  const gy = deco?.yAt(x, z) ?? terraceTopY(Math.hypot(x, z), ISLAND_RADIUS);
+  group.position.set(x, gy, z);
   scene.add(group);
 }
 
@@ -237,6 +263,7 @@ function addPalm(
   trunkMat: THREE.Material,
   leafMat: THREE.Material,
   scale = 1,
+  deco?: DecoCtx,
 ): void {
   const group = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 3.1, 6), trunkMat);
@@ -253,7 +280,8 @@ function addPalm(
     leaf.scale.setScalar(scale);
     group.add(leaf);
   }
-  group.position.set(x, islandY(x, z), z);
+  const gy = deco?.yAt(x, z) ?? terraceTopY(Math.hypot(x, z), ISLAND_RADIUS);
+  group.position.set(x, gy, z);
   scene.add(group);
 }
 

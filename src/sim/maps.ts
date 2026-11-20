@@ -99,7 +99,8 @@ export function night2Map(): NightMap {
 export function night3Map(): NightMap {
   return {
     night: 3,
-    spawn: [0, 0, 0],
+    /** Bệ đài y=6; tránh tâm (towerBlocks r<2) — không spawn trong thân tháp. */
+    spawn: [0, 6, 7],
     facing: [0, 1],
     lanterns: [
       { id: "L1", pos: [0, 6, 6] },
