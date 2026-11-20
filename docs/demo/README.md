@@ -2,7 +2,8 @@
 
 | File | Mục đích |
 |------|----------|
-| `Demo.mp4` | Bản nộp trên máy (~221 MB) → **Release v1.0.0** trên [repo](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long) |
+| `Demo.mp4` | Bản **nén ~10 MB** (720p) — commit vào repo hoặc đính Release (&lt; 100 MB) |
+| `../Demo.mp4` | Bản gốc quay màn hình (~221 MB) — chỉ giữ trên máy, không push |
 
 Không commit file &gt; 100 MB lên GitHub. Cách nén / `gh release upload`: [docs/notes/NOP-BAI-HUONG-DAN.md](../notes/NOP-BAI-HUONG-DAN.md).
 

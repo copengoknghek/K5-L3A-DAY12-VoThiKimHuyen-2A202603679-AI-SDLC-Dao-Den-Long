@@ -1,6 +1,6 @@
 # Đảo Đèn Lồng — v1.0.0
 
-**Video demo:** [Demo.mp4 (Release v1.0.0)](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long/releases/download/v1.0.0/Demo.mp4) — đính file `Demo.mp4` khi tạo Release trên [repo](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long). *(File ~221 MB không đưa vào git; chi tiết [docs/notes/NOP-BAI-HUONG-DAN.md](docs/notes/NOP-BAI-HUONG-DAN.md).)*
+**Video demo:** [Demo.mp4 trên GitHub](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long/blob/main/docs/demo/Demo.mp4) (~10 MB, dưới 5 phút) · [Release v1.0.0](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long/releases/download/v1.0.0/Demo.mp4) *(nếu đính thêm asset)* · [Repo](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long)
 
 Game 3D: Mây **giữ đảo sáng tới bình minh** trên **Đảo Bến, Đảo Cau, Đảo Chuông**. Contract **v1.3** (benchmark, soak, bảng xếp hạng, tiếp cận).
 
