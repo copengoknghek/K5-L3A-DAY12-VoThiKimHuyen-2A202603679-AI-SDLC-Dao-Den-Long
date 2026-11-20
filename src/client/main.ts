@@ -3,7 +3,7 @@ import contract from "../../game.contract.json";
 import { GameAudio } from "./audio.js";
 import { buildAvatar, type AvatarId } from "./characters.js";
 import { applyLanternLit, buildSilkLantern, createStarMote, type SilkLantern } from "./props.js";
-import { driftClouds, visualGroundY } from "./scenery.js";
+import { animateVietnamFlags, driftClouds, visualGroundY } from "./scenery.js";
 import { buildStage } from "./stage.js";
 import { DEFAULT_HELD, playerCapacity, type HeldInput, type Tuning } from "../sim/types.js";
 import type { SimState } from "../sim/types.js";
@@ -478,7 +478,11 @@ function frame(now: number): void {
       syncVisual(now / 1000);
       camera.position.set(12, 16, 28);
       camera.lookAt(0, 2, 0);
-      if (!settings.reduceMotion) driftClouds(clouds, now / 1000);
+      const animT = now / 1000;
+      if (!settings.reduceMotion) {
+        driftClouds(clouds, animT);
+        animateVietnamFlags(stage, animT);
+      }
       renderer.render(scene, camera);
       return;
     }
@@ -560,7 +564,11 @@ function frame(now: number): void {
     camera.position.set(12, 16, 28);
     camera.lookAt(0, 2, 0);
   }
-  if (!settings.reduceMotion) driftClouds(clouds, now / 1000);
+  const animT = now / 1000;
+  if (!settings.reduceMotion) {
+    driftClouds(clouds, animT);
+    animateVietnamFlags(stage, animT);
+  }
   renderer.render(scene, camera);
 }
 

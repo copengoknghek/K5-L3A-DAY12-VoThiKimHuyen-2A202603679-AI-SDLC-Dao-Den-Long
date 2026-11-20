@@ -5,3 +5,6 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+# Video demo (~221 MB) — đính GitHub Release v1.0.0, không commit
+Demo.mp4
+Đảo Đèn Lồng*.mp4

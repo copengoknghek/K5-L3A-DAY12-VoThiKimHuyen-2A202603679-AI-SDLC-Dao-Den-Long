@@ -39,6 +39,137 @@ type CloudDrift = {
   speed: number;
 };
 
+const VN_GOLD = 0xffd700;
+
+function makeVnFlagTexture(): THREE.CanvasTexture {
+  const w = 768;
+  const h = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#DA251D";
+  ctx.fillRect(0, 0, w, h);
+  const cx = w / 2;
+  const cy = h / 2;
+  const outer = h * 0.22;
+  const inner = outer * 0.38;
+  ctx.fillStyle = "#FFCD00";
+  ctx.beginPath();
+  let rot = -Math.PI / 2;
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outer : inner;
+    const px = cx + Math.cos(rot) * r;
+    const py = cy + Math.sin(rot) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+    rot += Math.PI / 5;
+  }
+  ctx.closePath();
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+let vnFlagTex: THREE.CanvasTexture | null = null;
+
+function vnFlagMaterial(): THREE.MeshStandardMaterial {
+  if (!vnFlagTex) vnFlagTex = makeVnFlagTexture();
+  return new THREE.MeshStandardMaterial({
+    map: vnFlagTex,
+    emissive: 0x2a0808,
+    emissiveIntensity: 0.15,
+    side: THREE.DoubleSide,
+    roughness: 0.72,
+    metalness: 0.02,
+  });
+}
+
+/** Cột cờ + lá cờ đỏ sao vàng tại tâm đảo (chỉ hiển thị). */
+export function addVietnamFlag(scene: THREE.Object3D, x: number, z: number, night: 1 | 2 | 3): void {
+  const group = new THREE.Group();
+  group.name = "vn-flag";
+  let baseY = visualGroundY(x, z, 0, night);
+  if (night === 3 && Math.hypot(x, z) < 12) baseY = 6.15;
+
+  const pedestal = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.15, 1.3, 0.24, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0xd4bc6a,
+      emissive: 0x3a2a08,
+      emissiveIntensity: 0.22,
+      roughness: 0.78,
+    }),
+  );
+  pedestal.position.y = 0.12;
+  group.add(pedestal);
+
+  const poleH = 4.6;
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.075, poleH, 12),
+    new THREE.MeshStandardMaterial({ color: 0xb84a38, roughness: 0.55, metalness: 0.18 }),
+  );
+  pole.position.y = poleH / 2;
+  group.add(pole);
+
+  const finial = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 10, 8),
+    new THREE.MeshStandardMaterial({
+      color: VN_GOLD,
+      emissive: VN_GOLD,
+      emissiveIntensity: 0.35,
+      roughness: 0.35,
+      metalness: 0.45,
+    }),
+  );
+  finial.position.y = poleH + 0.02;
+  group.add(finial);
+
+  const flagW = 2.5;
+  const flagH = (flagW * 2) / 3;
+  const segsX = 20;
+  const segsY = 12;
+  const clothGeo = new THREE.PlaneGeometry(flagW, flagH, segsX, segsY);
+  const base = new Float32Array(clothGeo.attributes.position.array);
+  const cloth = new THREE.Mesh(clothGeo, vnFlagMaterial());
+  cloth.name = "vn-flag-cloth";
+  cloth.userData = { base, flagW };
+  const poleTop = poleH - 0.05;
+  cloth.position.set(0.09 + flagW / 2, poleTop - flagH / 2, 0);
+  group.add(cloth);
+
+  group.position.set(x, baseY, z);
+  scene.add(group);
+}
+
+/** Sóng nhẹ trên lá cờ (gọi mỗi frame khi không reduce motion). */
+export function animateVietnamFlags(root: THREE.Object3D, t: number): void {
+  root.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) || child.name !== "vn-flag-cloth") return;
+    const ud = child.userData as { base?: Float32Array; flagW?: number };
+    const base = ud.base;
+    const flagW = ud.flagW ?? 2.5;
+    if (!base) return;
+    const pos = child.geometry.attributes.position;
+    const arr = pos.array as Float32Array;
+    for (let i = 0; i < pos.count; i++) {
+      const bx = base[i * 3];
+      const by = base[i * 3 + 1];
+      const bz = base[i * 3 + 2];
+      const along = (bx + flagW / 2) / flagW;
+      const ripple = Math.sin(t * 2.8 + bx * 2.4 + by * 0.5) * 0.06 * along;
+      const lift = Math.sin(t * 1.6 + bx * 1.8) * 0.02 * along;
+      arr[i * 3] = bx;
+      arr[i * 3 + 1] = by + lift;
+      arr[i * 3 + 2] = bz + ripple;
+    }
+    pos.needsUpdate = true;
+    child.geometry.computeVertexNormals();
+  });
+}
+
 export function addGrassAndTrees(
   scene: THREE.Object3D,
   cx = 0,

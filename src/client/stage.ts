@@ -4,6 +4,7 @@ import {
   addGroundMist,
   addMountains,
   addSteppedIsland,
+  addVietnamFlag,
   createCloudField,
 } from "./scenery.js";
 
@@ -83,6 +84,7 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
   if (night === 1) {
     addIsland(parent, 0, 0, 40);
     addGrassAndTrees(parent, 0, 0, 40, undefined, 4242, 1);
+    addVietnamFlag(parent, 0, 0, 1);
   }
   if (night === 2) {
     addIsland(parent, 0, 0, 28);
@@ -103,6 +105,8 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
       pad.position.set(p[0], p[1], p[2]);
       parent.add(pad);
     }
+    addVietnamFlag(parent, 0, 0, 2);
+    addVietnamFlag(parent, 70, 0, 2);
   }
   if (night === 3) {
     addIsland(parent, 0, 0, 45, 0.32);
@@ -132,6 +136,7 @@ export function buildStage(night: 1 | 2 | 3, parent: THREE.Group): THREE.Group {
     pad.position.set(0, 3.15, 13);
     parent.add(pad);
     addGrassAndTrees(parent, 0, 0, 45, 0.32, 6060, 3);
+    addVietnamFlag(parent, 0, 0, 3);
   }
 
   const clouds = createCloudField();

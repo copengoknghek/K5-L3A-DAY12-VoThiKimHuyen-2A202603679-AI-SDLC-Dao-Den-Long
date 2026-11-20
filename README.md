@@ -1,6 +1,6 @@
 # Đảo Đèn Lồng — v1.0.0
 
-<!-- Video demo: thêm link Release v1.0.0 hoặc docs/demo/demo.mp4 -->
+**Video demo:** [Demo.mp4 (Release v1.0.0)](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long/releases/download/v1.0.0/Demo.mp4) — đính file `Demo.mp4` khi tạo Release trên [repo](https://github.com/copengoknghek/K5-L3A-DAY12-VoThiKimHuyen-2A202603679-AI-SDLC-Dao-Den-Long). *(File ~221 MB không đưa vào git; chi tiết [docs/notes/NOP-BAI-HUONG-DAN.md](docs/notes/NOP-BAI-HUONG-DAN.md).)*
 
 Game 3D: Mây **giữ đảo sáng tới bình minh** trên **Đảo Bến, Đảo Cau, Đảo Chuông**. Contract **v1.3** (benchmark, soak, bảng xếp hạng, tiếp cận).
 
@@ -89,7 +89,8 @@ Bản chạy: thư mục **`dist/client/`** (web tĩnh sau `npm run build`) + he
 
 - [Phase 1](docs/proof/phase-1.md) · [Phase 2](docs/proof/phase-2.md) · [Phase 3](docs/proof/phase-3.md) · [Phase 4](docs/proof/phase-4.md)
 - [CHANGELOG](CHANGELOG.md) · [CREDITS](CREDITS.md) · [LICENSE](LICENSE)
-- Retro: [docs/notes/retro-phase4.md](docs/notes/retro-phase4.md)
+- Retro: [docs/notes/retro-phase4.md](docs/notes/retro-phase4.md) · AI log: [P1](docs/notes/phase-1-ai-log.md) · [P2](docs/notes/phase-2-ai-log.md) · [P3](docs/notes/phase-3-ai-log.md)
+- Nộp bài (tag/Release/video): [docs/notes/NOP-BAI-HUONG-DAN.md](docs/notes/NOP-BAI-HUONG-DAN.md)
 - Kết quả mẫu: [`bench.json`](bench.json) · [`soak.json`](soak.json)
 
 ## Sáng tạo
