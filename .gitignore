@@ -5,6 +5,7 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
-# Video demo (~221 MB) — đính GitHub Release v1.0.0, không commit
-Demo.mp4
+# Video gốc quay màn hình ở thư mục gốc (~221 MB)
+/Demo.mp4
 Đảo Đèn Lồng*.mp4
+# Bản nén nộp: docs/demo/Demo.mp4 — được commit
